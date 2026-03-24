@@ -215,6 +215,26 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
 @media(max-width:380px){
   .header h1{font-size:13px;}
 }
+
+/* ===== Print ===== */
+@media print{
+  @page{size:A4 landscape;margin:6mm 8mm;}
+  body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:9px;}
+  .header,.sidebar,.sidebar-backdrop,.fab,.inline-popup,.popup-backdrop,.modal-overlay,.setup-overlay,.toast{display:none !important;}
+  .main{display:block;height:auto;}
+  .calendar-area{padding:0;overflow:visible;}
+  .calendar-scroll{overflow:visible;}
+  .month-block{break-inside:avoid;page-break-inside:avoid;margin-bottom:6px;box-shadow:none;border:1px solid #bbb;border-radius:4px;}
+  .month-header{font-size:11px;padding:4px 10px;background:#f0ede6 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .month-add-btn{display:none !important;}
+  .day-header{font-size:8px;padding:2px 0;min-width:0;}
+  .day-header span{font-size:6px !important;}
+  .event-rows{min-height:18px;}
+  .event-row{height:18px;}
+  .event-bar-row{height:18px;}
+  .event-bar{height:14px;top:2px;font-size:7px;padding:0 2px;border-radius:2px;left:0;right:0;}
+  .event-cell{border-color:#ddd;}
+}
 </style>
 </head>
 <body>
@@ -252,6 +272,7 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
     <span class="user-badge" id="userBadge"></span>
     <button class="btn btn-secondary btn-sm" onclick="manualSync()">再読込</button>
     <button class="btn btn-primary btn-sm" onclick="exportExcel()">Excel</button>
+    <button class="btn btn-secondary btn-sm" onclick="window.print()">印刷</button>
     <button class="btn btn-secondary btn-sm" onclick="showSettings()">設定</button>
   </div>
 </div>
@@ -456,7 +477,7 @@ function renderCalendar(){
     for(let d=1;d<=dim;d++){const dow=new Date(currentYear,m,d).getDay();html+=`<div class="day-header${dow===0?' sun':dow===6?' sat':''}">${d}<br><span style="font-size:9px">${dn[dow]}</span></div>`;}
     html+='</div>';
     // Background grid cells (for borders)
-    html+=`<div class="event-rows" style="height:${maxR*30}px">`;
+    html+=`<div class="event-rows" data-rows="${maxR}" style="height:${maxR*30}px">`;
     for(let r=0;r<maxR;r++){html+=`<div class="event-row" style="grid-template-columns:${gridCols}">`;for(let d=1;d<=dim;d++)html+='<div class="event-cell"></div>';html+='</div>';}
     // Bar rows using grid-column
     for(let r=0;r<maxR;r++){
@@ -590,6 +611,28 @@ function showToast(m,isErr){const t=document.getElementById('toast');t.textConte
 
 // ===== Keys =====
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeSettings();closeInlinePopup();}if(e.key==='n'&&(e.ctrlKey||e.metaKey)){e.preventDefault();openAddModal();}});
+
+// ===== Print height adjustment =====
+window.addEventListener('beforeprint',()=>{
+  document.querySelectorAll('.event-rows').forEach(el=>{
+    const rows=parseInt(el.dataset.rows)||1;
+    el.style.height=(rows*18)+'px';
+  });
+  document.querySelectorAll('.event-bar-row').forEach(el=>{
+    const curTop=parseInt(el.style.top)||0;
+    el.dataset.origTop=curTop;
+    el.style.top=Math.round(curTop/30*18)+'px';
+  });
+});
+window.addEventListener('afterprint',()=>{
+  document.querySelectorAll('.event-rows').forEach(el=>{
+    const rows=parseInt(el.dataset.rows)||1;
+    el.style.height=(rows*30)+'px';
+  });
+  document.querySelectorAll('.event-bar-row').forEach(el=>{
+    el.style.top=(el.dataset.origTop||0)+'px';
+  });
+});
 
 // ===== Start =====
 function startApp(){fetchEvents();if(syncInterval)clearInterval(syncInterval);syncInterval=setInterval(fetchEvents,30000);}
