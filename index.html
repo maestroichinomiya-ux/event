@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>催事スケジュール管理 - 良平堂</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f6f3ee;
+  --surface: #ffffff;
+  --surface-alt: #faf8f5;
+  --border: #e0dbd3;
+  --border-light: #ece8e1;
+  --text: #2c2820;
+  --text-muted: #7a7268;
+  --text-light: #a09889;
+  --accent: #b8860b;
+  --accent-hover: #9a7009;
+  --accent-light: #f5ecd8;
+  --danger: #c44;
+  --danger-hover: #a33;
+
+  --cat-tokai: #4a7ab5;
+  --cat-tokai-light: #dce8f4;
+  --cat-kanto: #5a9e6f;
+  --cat-kanto-light: #ddf0e3;
+  --cat-kansai: #c47d2e;
+  --cat-kansai-light: #f5e8d4;
+  --cat-other: #888;
+  --cat-other-light: #e8e8e8;
+  --cat-special: #9b59b6;
+  --cat-special-light: #ede0f4;
+
+  --shadow-sm: 0 1px 3px rgba(44,40,32,0.06);
+  --shadow-md: 0 4px 12px rgba(44,40,32,0.08);
+  --shadow-lg: 0 8px 24px rgba(44,40,32,0.12);
+  --radius: 6px;
+  --radius-lg: 10px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Zen Kaku Gothic New', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* Header */
+.header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: var(--shadow-sm);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header h1 {
+  font-family: 'Zen Maru Gothic', serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+
+.header .year-select {
+  font-size: 14px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--accent-hover); }
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover { background: var(--surface-alt); }
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+.btn-danger:hover { background: var(--danger-hover); }
+
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+
+/* Main Layout */
+.main {
+  display: flex;
+  height: calc(100vh - 57px);
+}
+
+/* Sidebar */
+.sidebar {
+  width: 320px;
+  min-width: 320px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar-header h2 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.event-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--surface-alt);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.sidebar-filters {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  color: var(--text-muted);
+}
+.filter-chip:hover { border-color: var(--accent); color: var(--accent); }
+.filter-chip.active {
+  background: var(--accent-light);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.event-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+
+.event-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.1s;
+  border: 1px solid transparent;
+  margin-bottom: 2px;
+}
+.event-item:hover { background: var(--surface-alt); }
+.event-item.selected { background: var(--accent-light); border-color: var(--accent); }
+
+.event-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.event-item-info { flex: 1; min-width: 0; }
+.event-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.event-item-date {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.event-item-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.event-item:hover .event-item-actions { opacity: 1; }
+
+.icon-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  transition: all 0.1s;
+}
+.icon-btn:hover { background: var(--border-light); color: var(--text); }
+.icon-btn.delete:hover { background: #fde8e8; color: var(--danger); }
+
+/* Calendar Area */
+.calendar-area {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+
+.month-block {
+  margin-bottom: 24px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+
+.month-header {
+  padding: 10px 20px;
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--border-light);
+  font-family: 'Zen Maru Gothic', serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.month-grid {
+  display: grid;
+  gap: 0;
+  padding: 0;
+}
+
+.day-header-row {
+  display: flex;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.day-header {
+  flex: 1;
+  text-align: center;
+  padding: 6px 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  min-width: 36px;
+  border-right: 1px solid var(--border-light);
+}
+.day-header:last-child { border-right: none; }
+.day-header.sun { color: #c44; }
+.day-header.sat { color: #47a; }
+
+.event-rows {
+  position: relative;
+  min-height: 32px;
+}
+
+.event-row {
+  display: flex;
+  position: relative;
+  height: 28px;
+}
+
+.event-cell {
+  flex: 1;
+  min-width: 36px;
+  border-right: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+}
+.event-cell:last-child { border-right: none; }
+
+.event-bar {
+  position: absolute;
+  height: 22px;
+  top: 3px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 500;
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 6px;
+  z-index: 2;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.event-bar:hover { opacity: 0.85; transform: scaleY(1.1); }
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(44,40,32,0.4);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.modal-overlay.active { opacity: 1; pointer-events: all; }
+
+.modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 440px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  transform: translateY(10px);
+  transition: transform 0.2s;
+}
+.modal-overlay.active .modal { transform: translateY(0); }
+
+.modal-header {
+  padding: 20px 24px 0;
+  font-family: 'Zen Maru Gothic', serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.modal-body { padding: 20px 24px; }
+
+.form-group { margin-bottom: 16px; }
+.form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+}
+.form-group input, .form-group select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  transition: border-color 0.15s;
+}
+.form-group input:focus, .form-group select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+.form-row .form-group { flex: 1; }
+
+.modal-footer {
+  padding: 0 24px 20px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* Category colors in form */
+.category-options {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.category-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s;
+  font-family: inherit;
+  background: var(--surface);
+}
+.category-option:hover { border-color: var(--text-muted); }
+.category-option.selected { border-color: var(--accent); background: var(--accent-light); }
+.category-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+/* Import section */
+.import-section {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-light);
+}
+
+.import-section summary {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  list-style: none;
+}
+.import-section summary::-webkit-details-marker { display: none; }
+
+.import-area {
+  margin-top: 10px;
+}
+.import-area textarea {
+  width: 100%;
+  height: 100px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: 'Zen Kaku Gothic New', monospace;
+  font-size: 12px;
+  resize: vertical;
+  color: var(--text);
+}
+.import-area textarea:focus { outline: none; border-color: var(--accent); }
+.import-hint {
+  font-size: 11px;
+  color: var(--text-light);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--text);
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  z-index: 300;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.3s;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-light);
+}
+.empty-state p { font-size: 13px; margin-top: 8px; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-light); }
+
+/* Data management buttons in sidebar */
+.sidebar-footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border-light);
+  display: flex;
+  gap: 6px;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>催事スケジュール管理</h1>
+    <select class="year-select" id="yearSelect"></select>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-secondary" onclick="exportJSON()">JSON保存</button>
+    <button class="btn btn-secondary" onclick="document.getElementById('jsonImport').click()">JSON読込</button>
+    <input type="file" id="jsonImport" accept=".json" style="display:none" onchange="importJSON(event)">
+    <button class="btn btn-primary" onclick="exportExcel()">Excel出力</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h2>催事一覧</h2>
+      <span class="event-count" id="eventCount">0件</span>
+    </div>
+    <div class="sidebar-filters" id="filterArea">
+      <button class="filter-chip active" data-cat="all">全て</button>
+      <button class="filter-chip" data-cat="tokai">東海</button>
+      <button class="filter-chip" data-cat="kanto">関東</button>
+      <button class="filter-chip" data-cat="kansai">関西</button>
+      <button class="filter-chip" data-cat="other">その他</button>
+      <button class="filter-chip" data-cat="special">特別</button>
+    </div>
+    <div class="event-list" id="eventList"></div>
+    <details class="import-section">
+      <summary>一括入力（テキスト）</summary>
+      <div class="import-area">
+        <textarea id="bulkInput" placeholder="催事名, 開始日, 終了日, カテゴリ&#10;栄三越, 1/5, 1/18, 東海&#10;NONOWA国立, 2/1, 2/28, 関東"></textarea>
+        <div class="import-hint">
+          1行1催事。カンマ区切り。<br>
+          カテゴリ: 東海/関東/関西/その他/特別<br>
+          日付は M/D 形式（年は上部の選択年）
+        </div>
+        <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="bulkImport()">一括登録</button>
+      </div>
+    </details>
+    <div class="sidebar-footer">
+      <button class="btn btn-primary btn-sm" style="flex:1" onclick="openAddModal()">+ 催事を追加</button>
+    </div>
+  </div>
+
+  <div class="calendar-area" id="calendarArea"></div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header" id="modalTitle">催事を追加</div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>催事名</label>
+        <input type="text" id="eventName" placeholder="例: 栄三越">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>開始日</label>
+          <input type="date" id="eventStart">
+        </div>
+        <div class="form-group">
+          <label>終了日</label>
+          <input type="date" id="eventEnd">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>カテゴリ（色分け）</label>
+        <div class="category-options" id="categoryOptions">
+          <button class="category-option" data-cat="tokai" onclick="selectCategory('tokai')">
+            <span class="category-dot" style="background:var(--cat-tokai)"></span>東海
+          </button>
+          <button class="category-option" data-cat="kanto" onclick="selectCategory('kanto')">
+            <span class="category-dot" style="background:var(--cat-kanto)"></span>関東
+          </button>
+          <button class="category-option" data-cat="kansai" onclick="selectCategory('kansai')">
+            <span class="category-dot" style="background:var(--cat-kansai)"></span>関西
+          </button>
+          <button class="category-option" data-cat="other" onclick="selectCategory('other')">
+            <span class="category-dot" style="background:var(--cat-other)"></span>その他
+          </button>
+          <button class="category-option" data-cat="special" onclick="selectCategory('special')">
+            <span class="category-dot" style="background:var(--cat-special)"></span>特別
+          </button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>備考</label>
+        <input type="text" id="eventNote" placeholder="任意">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" id="modalSaveBtn" onclick="saveEvent()">追加</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== Data Model =====
+let events = [];
+let currentYear = new Date().getFullYear();
+let editingId = null;
+let selectedCategory = 'tokai';
+let filterCategory = 'all';
+
+const CAT_COLORS = {
+  tokai:   { bg: '#4a7ab5', light: '#dce8f4', label: '東海' },
+  kanto:   { bg: '#5a9e6f', light: '#ddf0e3', label: '関東' },
+  kansai:  { bg: '#c47d2e', light: '#f5e8d4', label: '関西' },
+  other:   { bg: '#888888', light: '#e8e8e8', label: 'その他' },
+  special: { bg: '#9b59b6', light: '#ede0f4', label: '特別' },
+};
+
+// Excel theme color mapping
+const EXCEL_THEME_COLORS = {
+  tokai:   { theme: 4, tint: 0.6 },
+  kanto:   { theme: 5, tint: 0.4 },
+  kansai:  { theme: 9, tint: 0.4 },
+  other:   { theme: 0, tint: -0.25 },
+  special: { theme: 7, tint: 0.4 },
+};
+
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+// ===== Year Select =====
+function initYearSelect() {
+  const sel = document.getElementById('yearSelect');
+  for (let y = currentYear - 1; y <= currentYear + 2; y++) {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = y + '年';
+    if (y === currentYear) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.addEventListener('change', () => {
+    currentYear = parseInt(sel.value);
+    render();
+  });
+}
+
+// ===== Rendering =====
+function render() {
+  renderEventList();
+  renderCalendar();
+}
+
+function getFilteredEvents() {
+  let filtered = events.filter(e => {
+    const s = new Date(e.start);
+    const en = new Date(e.end);
+    return s.getFullYear() === currentYear || en.getFullYear() === currentYear;
+  });
+  if (filterCategory !== 'all') {
+    filtered = filtered.filter(e => e.category === filterCategory);
+  }
+  return filtered.sort((a, b) => new Date(a.start) - new Date(b.start));
+}
+
+function renderEventList() {
+  const list = document.getElementById('eventList');
+  const filtered = getFilteredEvents();
+  document.getElementById('eventCount').textContent = filtered.length + '件';
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty-state"><p>催事がありません<br>「+ 催事を追加」で登録してください</p></div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(ev => {
+    const cat = CAT_COLORS[ev.category] || CAT_COLORS.other;
+    const s = new Date(ev.start);
+    const en = new Date(ev.end);
+    const dateStr = `${s.getMonth()+1}/${s.getDate()} - ${en.getMonth()+1}/${en.getDate()}`;
+    return `
+      <div class="event-item" data-id="${ev.id}" onclick="scrollToEvent('${ev.id}')">
+        <span class="event-color-dot" style="background:${cat.bg}"></span>
+        <div class="event-item-info">
+          <div class="event-item-name">${esc(ev.name)}</div>
+          <div class="event-item-date">${dateStr}</div>
+        </div>
+        <div class="event-item-actions">
+          <button class="icon-btn" onclick="event.stopPropagation();openEditModal('${ev.id}')" title="編集">&#9998;</button>
+          <button class="icon-btn delete" onclick="event.stopPropagation();deleteEvent('${ev.id}')" title="削除">&#10005;</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderCalendar() {
+  const area = document.getElementById('calendarArea');
+  const dayNames = ['日','月','火','水','木','金','土'];
+  let html = '';
+
+  for (let month = 0; month < 12; month++) {
+    const daysInMonth = new Date(currentYear, month + 1, 0).getDate();
+    const monthEvents = getEventsForMonth(month);
+
+    // Assign rows to events (avoid overlap)
+    const rows = assignRows(monthEvents, daysInMonth);
+
+    html += `<div class="month-block" id="month-${month}">`;
+    html += `<div class="month-header">${currentYear}年 ${month + 1}月</div>`;
+
+    // Day headers
+    html += '<div class="day-header-row">';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dow = new Date(currentYear, month, d).getDay();
+      const cls = dow === 0 ? ' sun' : dow === 6 ? ' sat' : '';
+      html += `<div class="day-header${cls}">${d}<br><span style="font-size:9px">${dayNames[dow]}</span></div>`;
+    }
+    html += '</div>';
+
+    // Event rows
+    const maxRow = rows.length > 0 ? Math.max(...rows.map(r => r.row)) + 1 : 1;
+    html += '<div class="event-rows" style="height:' + (maxRow * 30 + 4) + 'px">';
+
+    for (let r = 0; r < maxRow; r++) {
+      html += '<div class="event-row">';
+      for (let d = 1; d <= daysInMonth; d++) {
+        html += '<div class="event-cell"></div>';
+      }
+      html += '</div>';
+    }
+
+    // Event bars
+    for (const item of rows) {
+      const ev = item.event;
+      const cat = CAT_COLORS[ev.category] || CAT_COLORS.other;
+      const startDay = item.startDay;
+      const endDay = item.endDay;
+      const left = ((startDay - 1) / daysInMonth * 100).toFixed(3);
+      const width = ((endDay - startDay + 1) / daysInMonth * 100).toFixed(3);
+      const top = item.row * 30 + 3;
+
+      html += `<div class="event-bar" data-event-id="${ev.id}" style="left:${left}%;width:${width}%;top:${top}px;background:${cat.bg}" onclick="openEditModal('${ev.id}')" title="${esc(ev.name)} (${startDay}日-${endDay}日)">${esc(ev.name)}</div>`;
+    }
+
+    html += '</div></div>';
+  }
+
+  area.innerHTML = html;
+}
+
+function getEventsForMonth(month) {
+  return events.filter(ev => {
+    const s = new Date(ev.start);
+    const e = new Date(ev.end);
+    const monthStart = new Date(currentYear, month, 1);
+    const monthEnd = new Date(currentYear, month + 1, 0);
+    return s <= monthEnd && e >= monthStart;
+  }).map(ev => {
+    const s = new Date(ev.start);
+    const e = new Date(ev.end);
+    const daysInMonth = new Date(currentYear, month + 1, 0).getDate();
+    return {
+      event: ev,
+      startDay: Math.max(1, s.getFullYear() === currentYear && s.getMonth() === month ? s.getDate() : 1),
+      endDay: Math.min(daysInMonth, e.getFullYear() === currentYear && e.getMonth() === month ? e.getDate() : daysInMonth),
+    };
+  }).sort((a, b) => a.startDay - b.startDay || (b.endDay - b.startDay) - (a.endDay - a.startDay));
+}
+
+function assignRows(monthEvents, daysInMonth) {
+  const rowEnds = []; // Track end day for each row
+  return monthEvents.map(item => {
+    let row = 0;
+    while (row < rowEnds.length && rowEnds[row] >= item.startDay) {
+      row++;
+    }
+    if (row >= rowEnds.length) rowEnds.push(0);
+    rowEnds[row] = item.endDay;
+    return { ...item, row };
+  });
+}
+
+// ===== Modal =====
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = '催事を追加';
+  document.getElementById('modalSaveBtn').textContent = '追加';
+  document.getElementById('eventName').value = '';
+  document.getElementById('eventStart').value = `${currentYear}-01-01`;
+  document.getElementById('eventEnd').value = `${currentYear}-01-07`;
+  document.getElementById('eventNote').value = '';
+  selectCategory('tokai');
+  document.getElementById('modalOverlay').classList.add('active');
+  setTimeout(() => document.getElementById('eventName').focus(), 100);
+}
+
+function openEditModal(id) {
+  const ev = events.find(e => e.id === id);
+  if (!ev) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = '催事を編集';
+  document.getElementById('modalSaveBtn').textContent = '更新';
+  document.getElementById('eventName').value = ev.name;
+  document.getElementById('eventStart').value = ev.start;
+  document.getElementById('eventEnd').value = ev.end;
+  document.getElementById('eventNote').value = ev.note || '';
+  selectCategory(ev.category);
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+  editingId = null;
+}
+
+function selectCategory(cat) {
+  selectedCategory = cat;
+  document.querySelectorAll('.category-option').forEach(el => {
+    el.classList.toggle('selected', el.dataset.cat === cat);
+  });
+}
+
+function saveEvent() {
+  const name = document.getElementById('eventName').value.trim();
+  const start = document.getElementById('eventStart').value;
+  const end = document.getElementById('eventEnd').value;
+  const note = document.getElementById('eventNote').value.trim();
+
+  if (!name) { showToast('催事名を入力してください'); return; }
+  if (!start || !end) { showToast('日付を入力してください'); return; }
+  if (new Date(end) < new Date(start)) { showToast('終了日は開始日以降にしてください'); return; }
+
+  if (editingId) {
+    const ev = events.find(e => e.id === editingId);
+    if (ev) {
+      ev.name = name;
+      ev.start = start;
+      ev.end = end;
+      ev.category = selectedCategory;
+      ev.note = note;
+    }
+    showToast('更新しました');
+  } else {
+    events.push({ id: generateId(), name, start, end, category: selectedCategory, note });
+    showToast('追加しました');
+  }
+
+  closeModal();
+  saveToLocalStorage();
+  render();
+}
+
+function deleteEvent(id) {
+  if (!confirm('この催事を削除しますか？')) return;
+  events = events.filter(e => e.id !== id);
+  saveToLocalStorage();
+  render();
+  showToast('削除しました');
+}
+
+function scrollToEvent(id) {
+  const ev = events.find(e => e.id === id);
+  if (!ev) return;
+  const month = new Date(ev.start).getMonth();
+  const block = document.getElementById('month-' + month);
+  if (block) block.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ===== Filters =====
+document.getElementById('filterArea').addEventListener('click', e => {
+  const chip = e.target.closest('.filter-chip');
+  if (!chip) return;
+  filterCategory = chip.dataset.cat;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  render();
+});
+
+// ===== Bulk Import =====
+function bulkImport() {
+  const text = document.getElementById('bulkInput').value.trim();
+  if (!text) return;
+  const catMap = { '東海':'tokai', '関東':'kanto', '関西':'kansai', 'その他':'other', '特別':'special' };
+  const lines = text.split('\n').filter(l => l.trim());
+  let count = 0;
+  for (const line of lines) {
+    const parts = line.split(',').map(s => s.trim());
+    if (parts.length < 3) continue;
+    const [name, startStr, endStr, catStr] = parts;
+    const cat = catMap[catStr] || 'other';
+    const startMatch = startStr.match(/(\d+)\/(\d+)/);
+    const endMatch = endStr.match(/(\d+)\/(\d+)/);
+    if (!startMatch || !endMatch) continue;
+    const start = `${currentYear}-${startMatch[1].padStart(2,'0')}-${startMatch[2].padStart(2,'0')}`;
+    const end = `${currentYear}-${endMatch[1].padStart(2,'0')}-${endMatch[2].padStart(2,'0')}`;
+    events.push({ id: generateId(), name, start, end, category: cat, note: '' });
+    count++;
+  }
+  document.getElementById('bulkInput').value = '';
+  saveToLocalStorage();
+  render();
+  showToast(count + '件登録しました');
+}
+
+// ===== JSON Import/Export =====
+function exportJSON() {
+  const data = { year: currentYear, events, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  downloadBlob(blob, `催事表_${currentYear}.json`);
+  showToast('JSONファイルを保存しました');
+}
+
+function importJSON(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (data.events && Array.isArray(data.events)) {
+        if (confirm(`${data.events.length}件の催事データを読み込みます。現在のデータは上書きされます。よろしいですか？`)) {
+          events = data.events;
+          if (data.year) {
+            currentYear = data.year;
+            document.getElementById('yearSelect').value = currentYear;
+          }
+          saveToLocalStorage();
+          render();
+          showToast(data.events.length + '件読み込みました');
+        }
+      }
+    } catch (err) {
+      showToast('JSONの読み込みに失敗しました');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+// ===== Excel Export =====
+async function exportExcel() {
+  showToast('Excel生成中...');
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('催事表');
+
+  // Theme-like colors for Excel
+  const excelColors = {
+    tokai:   { bg: '4472C4', font: 'FFFFFF' },
+    kanto:   { bg: '70AD47', font: 'FFFFFF' },
+    kansai:  { bg: 'ED7D31', font: 'FFFFFF' },
+    other:   { bg: 'A5A5A5', font: 'FFFFFF' },
+    special: { bg: '9B59B6', font: 'FFFFFF' },
+  };
+
+  const dateHeaderFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2ECDE' } };
+  const dateHeaderFont = { name: '游ゴシック', size: 10, bold: false };
+  const monthFont = { name: '游ゴシック', size: 11, bold: true };
+  const eventFont = { name: '游ゴシック', size: 9 };
+  const thinBorder = { style: 'thin', color: { argb: 'FFD0D0D0' } };
+  const cellBorder = { left: thinBorder, right: thinBorder, top: thinBorder, bottom: thinBorder };
+
+  // Column widths: all narrow for day columns
+  for (let c = 1; c <= 31; c++) {
+    ws.getColumn(c).width = 4.5;
+  }
+
+  let currentRow = 1;
+  const dayNames = ['日','月','火','水','木','金','土'];
+
+  for (let month = 0; month < 12; month++) {
+    const daysInMonth = new Date(currentYear, month + 1, 0).getDate();
+    const monthEvents = getEventsForMonth(month);
+    const rows = assignRows(monthEvents, daysInMonth);
+    const maxRow = rows.length > 0 ? Math.max(...rows.map(r => r.row)) + 1 : 1;
+
+    // Month title row
+    const titleCell = ws.getCell(currentRow, Math.ceil(daysInMonth / 2));
+    titleCell.value = `${currentYear}   ${month + 1}月`;
+    titleCell.font = monthFont;
+    titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+    ws.getRow(currentRow).height = 20;
+    currentRow++;
+
+    // Day number row
+    for (let d = 1; d <= daysInMonth; d++) {
+      const cell = ws.getCell(currentRow, d);
+      const dow = new Date(currentYear, month, d).getDay();
+      cell.value = d;
+      cell.font = { ...dateHeaderFont, color: { argb: dow === 0 ? 'FFCC4444' : dow === 6 ? 'FF4477AA' : 'FF333333' } };
+      cell.fill = dateHeaderFill;
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.border = cellBorder;
+    }
+    ws.getRow(currentRow).height = 16;
+    currentRow++;
+
+    // Event rows
+    for (let r = 0; r < maxRow; r++) {
+      const rowItems = rows.filter(item => item.row === r);
+      ws.getRow(currentRow).height = 19;
+
+      // Set thin borders on all day cells
+      for (let d = 1; d <= daysInMonth; d++) {
+        ws.getCell(currentRow, d).border = cellBorder;
+      }
+
+      for (const item of rowItems) {
+        const ev = item.event;
+        const colors = excelColors[ev.category] || excelColors.other;
+        const startCol = item.startDay;
+        const endCol = item.endDay;
+
+        // Merge cells
+        if (endCol > startCol) {
+          ws.mergeCells(currentRow, startCol, currentRow, endCol);
+        }
+
+        const cell = ws.getCell(currentRow, startCol);
+        cell.value = ev.name;
+        cell.font = { ...eventFont, color: { argb: 'FF' + colors.font } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + colors.bg } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: false };
+        cell.border = cellBorder;
+      }
+      currentRow++;
+    }
+
+    // Small gap between months
+    ws.getRow(currentRow).height = 6;
+    currentRow++;
+  }
+
+  // Generate & download
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  downloadBlob(blob, `催事表_${currentYear}.xlsx`);
+  showToast('Excelファイルを出力しました');
+}
+
+// ===== Utils =====
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timeout);
+  t._timeout = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ===== LocalStorage =====
+function saveToLocalStorage() {
+  try {
+    localStorage.setItem('saiji_events', JSON.stringify(events));
+    localStorage.setItem('saiji_year', currentYear.toString());
+  } catch(e) {}
+}
+
+function loadFromLocalStorage() {
+  try {
+    const data = localStorage.getItem('saiji_events');
+    if (data) events = JSON.parse(data);
+    const year = localStorage.getItem('saiji_year');
+    if (year) {
+      currentYear = parseInt(year);
+      document.getElementById('yearSelect').value = currentYear;
+    }
+  } catch(e) {}
+}
+
+// ===== Keyboard shortcuts =====
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if (e.key === 'n' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); openAddModal(); }
+});
+
+// ===== Init =====
+initYearSelect();
+loadFromLocalStorage();
+
+// Load sample data from the uploaded Excel if no saved data
+if (events.length === 0) {
+  // Pre-populate with the data from the uploaded file
+  const sampleEvents = [
+    { name: '岡崎高島屋', start: '2026-01-01', end: '2026-01-20', category: 'tokai' },
+    { name: '名鉄百貨店', start: '2026-01-01', end: '2026-01-31', category: 'tokai' },
+    { name: 'NONOWA国立', start: '2026-01-01', end: '2026-01-31', category: 'kanto' },
+    { name: '阿倍野47催事', start: '2026-01-07', end: '2026-01-13', category: 'kansai' },
+    { name: '講談社', start: '2026-01-14', end: '2026-01-15', category: 'kanto' },
+    { name: '千里阪急', start: '2026-01-21', end: '2026-01-27', category: 'kansai' },
+    { name: '狛江スイーツボックス', start: '2026-01-14', end: '2026-01-20', category: 'other' },
+    { name: '宝塚阪急', start: '2026-01-21', end: '2026-01-27', category: 'kansai' },
+    { name: '京都大丸', start: '2026-01-07', end: '2026-01-13', category: 'kansai' },
+    { name: '柏高島屋', start: '2026-01-20', end: '2026-01-25', category: 'kanto' },
+    { name: '栄三越', start: '2026-01-01', end: '2026-01-20', category: 'tokai' },
+    { name: '神戸製鉄', start: '2026-01-21', end: '2026-01-22', category: 'kanto' },
+    { name: '福島', start: '2026-01-21', end: '2026-01-25', category: 'other' },
+    { name: '名鉄百貨店', start: '2026-02-01', end: '2026-02-28', category: 'tokai' },
+    { name: 'NONOWA国立', start: '2026-02-01', end: '2026-02-28', category: 'kanto' },
+    { name: 'キラリナ吉祥寺', start: '2026-02-09', end: '2026-02-14', category: 'kanto' },
+    { name: '名鉄百貨店(外)', start: '2026-02-22', end: '2026-02-28', category: 'tokai' },
+    { name: 'QVC', start: '2026-02-22', end: '2026-02-22', category: 'other' },
+    { name: 'ビックボックス高田馬場', start: '2026-02-09', end: '2026-02-15', category: 'kanto' },
+    { name: 'シャポー本八幡', start: '2026-02-25', end: '2026-02-28', category: 'kanto' },
+    { name: '上本町', start: '2026-02-15', end: '2026-02-24', category: 'kansai' },
+    { name: 'サンロード', start: '2026-02-25', end: '2026-02-28', category: 'tokai' },
+    { name: '栄三越', start: '2026-02-25', end: '2026-02-28', category: 'tokai' },
+    { name: 'NONOWA国立', start: '2026-03-01', end: '2026-03-31', category: 'kanto' },
+    { name: '阿倍野ハルカス', start: '2026-03-18', end: '2026-03-24', category: 'kansai' },
+    { name: '新潟伊勢丹', start: '2026-03-25', end: '2026-03-31', category: 'other' },
+    { name: '神戸阪急', start: '2026-03-04', end: '2026-03-10', category: 'kansai' },
+    { name: '大井町阪急', start: '2026-03-11', end: '2026-03-17', category: 'kanto' },
+    { name: '梅田大丸', start: '2026-03-25', end: '2026-03-31', category: 'kansai' },
+    { name: '理化学', start: '2026-03-03', end: '2026-03-04', category: 'kanto' },
+    { name: 'ペリエ津田沼', start: '2026-03-09', end: '2026-03-14', category: 'kanto' },
+    { name: '一宮名鉄', start: '2026-03-18', end: '2026-03-24', category: 'tokai' },
+    { name: 'そごう横浜', start: '2026-03-27', end: '2026-03-28', category: 'kanto' },
+    { name: 'シャポー本八幡', start: '2026-03-01', end: '2026-03-06', category: 'kanto' },
+    { name: 'nonowa武蔵小金井', start: '2026-03-09', end: '2026-03-15', category: 'kanto' },
+    { name: '栄三越', start: '2026-03-25', end: '2026-03-31', category: 'tokai' },
+    { name: 'サンロード', start: '2026-03-01', end: '2026-03-03', category: 'tokai' },
+    { name: '上本町', start: '2026-03-04', end: '2026-03-14', category: 'kansai' },
+    { name: '岡崎高島屋', start: '2026-03-18', end: '2026-03-31', category: 'tokai' },
+    { name: '栄三越', start: '2026-03-01', end: '2026-03-14', category: 'tokai' },
+    { name: '池袋東武', start: '2026-03-15', end: '2026-03-25', category: 'kanto' },
+    { name: 'NONOWA国立', start: '2026-04-01', end: '2026-04-30', category: 'kanto' },
+    { name: '大丸梅田', start: '2026-04-01', end: '2026-04-07', category: 'kansai' },
+    { name: '柏高島屋', start: '2026-04-15', end: '2026-04-21', category: 'kanto' },
+    { name: '恵那', start: '2026-04-25', end: '2026-04-25', category: 'tokai' },
+    { name: '船橋', start: '2026-04-30', end: '2026-04-30', category: 'kanto' },
+    { name: '一宮', start: '2026-04-29', end: '2026-04-30', category: 'tokai' },
+    { name: 'NONOWA国立', start: '2026-05-02', end: '2026-05-31', category: 'kanto' },
+    { name: '船橋東武', start: '2026-05-01', end: '2026-05-06', category: 'kanto' },
+    { name: '神戸阪急', start: '2026-05-13', end: '2026-05-19', category: 'kansai' },
+    { name: '栄三越', start: '2026-05-27', end: '2026-05-31', category: 'tokai' },
+    { name: '一宮', start: '2026-05-01', end: '2026-05-05', category: 'tokai' },
+    { name: '奈良近鉄', start: '2026-05-13', end: '2026-05-19', category: 'kansai' },
+    { name: '恵那', start: '2026-05-30', end: '2026-05-30', category: 'tokai' },
+    { name: '大丸須磨', start: '2026-05-13', end: '2026-05-19', category: 'kansai' },
+    { name: '札幌大丸', start: '2026-05-27', end: '2026-05-31', category: 'special' },
+    { name: '調布パルコ', start: '2026-05-13', end: '2026-05-26', category: 'kanto' },
+    { name: 'ラリー豊田', start: '2026-05-29', end: '2026-05-31', category: 'tokai' },
+    { name: '大井町阪急', start: '2026-06-03', end: '2026-06-09', category: 'kanto' },
+    { name: 'パルコひばりが丘', start: '2026-06-15', end: '2026-06-21', category: 'kanto' },
+    { name: 'ビーンズ亀有', start: '2026-06-25', end: '2026-06-30', category: 'kanto' },
+    { name: '栄三越', start: '2026-06-01', end: '2026-06-09', category: 'tokai' },
+    { name: '芦屋大丸', start: '2026-06-17', end: '2026-06-23', category: 'kansai' },
+    { name: '千里阪急', start: '2026-06-24', end: '2026-06-30', category: 'kansai' },
+    { name: '京都', start: '2026-06-05', end: '2026-06-06', category: 'kansai' },
+    { name: '東武池袋', start: '2026-06-11', end: '2026-06-17', category: 'kanto' },
+    { name: '一宮名鉄', start: '2026-06-24', end: '2026-06-30', category: 'tokai' },
+    { name: '近鉄四日市', start: '2026-07-01', end: '2026-07-07', category: 'tokai' },
+    { name: 'ラスカ茅ヶ崎', start: '2026-07-15', end: '2026-07-21', category: 'kanto' },
+    { name: '神戸阪急', start: '2026-07-29', end: '2026-07-31', category: 'kansai' },
+    { name: '上本町', start: '2026-07-15', end: '2026-07-21', category: 'kansai' },
+    { name: '一宮名鉄', start: '2026-07-22', end: '2026-07-28', category: 'tokai' },
+    { name: '京都大丸', start: '2026-07-01', end: '2026-07-10', category: 'kansai' },
+    { name: '梅田阪急', start: '2026-07-15', end: '2026-07-21', category: 'kansai' },
+    { name: '神戸阪急', start: '2026-08-01', end: '2026-08-04', category: 'kansai' },
+    { name: '近鉄四日市', start: '2026-09-02', end: '2026-09-08', category: 'tokai' },
+    { name: '赤羽', start: '2026-09-21', end: '2026-09-31', category: 'kanto' },
+    { name: '一宮名鉄', start: '2026-09-09', end: '2026-09-16', category: 'tokai' },
+    { name: 'ソラマチ', start: '2026-10-01', end: '2026-10-31', category: 'kanto' },
+    { name: '赤羽', start: '2026-10-01', end: '2026-10-04', category: 'kanto' },
+    { name: '千里阪急', start: '2026-10-28', end: '2026-10-31', category: 'kansai' },
+    { name: '千里阪急', start: '2026-11-01', end: '2026-11-03', category: 'kansai' },
+    { name: '栗フェス', start: '2026-11-13', end: '2026-11-15', category: 'special' },
+    { name: '茅ヶ崎', start: '2026-11-25', end: '2026-11-30', category: 'kanto' },
+  ];
+  events = sampleEvents.map(e => ({ ...e, id: generateId(), note: '' }));
+  saveToLocalStorage();
+}
+
+render();
+</script>
+</body>
+</html>
