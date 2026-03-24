@@ -129,7 +129,10 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
 .event-row{display:grid;height:30px;}
 .event-cell{border-right:1px solid var(--border-light);border-bottom:1px solid var(--border-light);}
 .event-cell:last-child{border-right:none;}
-.event-bar{position:absolute;height:24px;top:3px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px;z-index:2;text-shadow:0 1px 2px rgba(0,0,0,0.2);transition:box-shadow 0.15s;-webkit-tap-highlight-color:transparent;user-select:none;}
+/* Bars use grid placement inside a grid overlay */
+.event-bar-row{display:grid;height:30px;position:relative;}
+.event-bar-slot{position:relative;}
+.event-bar{position:absolute;height:24px;top:3px;left:1px;right:1px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px;z-index:2;text-shadow:0 1px 2px rgba(0,0,0,0.2);transition:box-shadow 0.15s;-webkit-tap-highlight-color:transparent;user-select:none;}
 .event-bar:hover,.event-bar:active{box-shadow:0 2px 8px rgba(0,0,0,0.25);}
 .event-bar:active{transform:scale(0.97);}
 
@@ -444,20 +447,26 @@ function renderEventList(){
 }
 function renderCalendar(){
   const area=document.getElementById('calendarArea'),dn=['日','月','火','水','木','金','土'];let html='';
-  const CW=40; // cell width in px
   for(let m=0;m<12;m++){
     const dim=new Date(currentYear,m+1,0).getDate(),me=getEventsForMonth(m),rows=assignRows(me),maxR=rows.length?Math.max(...rows.map(r=>r.row))+1:1;
-    const gridCols=`repeat(${dim},${CW}px)`;
+    const gridCols=`repeat(${dim},minmax(32px,1fr))`;
     html+=`<div class="month-block" id="month-${m}"><div class="month-header"><span>${currentYear}年 ${m+1}月</span><button class="month-add-btn" onclick="openAddModalForMonth(${m})" title="${m+1}月に追加">+</button></div><div class="calendar-scroll">`;
-    html+=`<div class="day-header-row" style="grid-template-columns:${gridCols};width:${dim*CW}px">`;
+    // Day headers
+    html+=`<div class="day-header-row" style="grid-template-columns:${gridCols}">`;
     for(let d=1;d<=dim;d++){const dow=new Date(currentYear,m,d).getDay();html+=`<div class="day-header${dow===0?' sun':dow===6?' sat':''}">${d}<br><span style="font-size:9px">${dn[dow]}</span></div>`;}
-    html+=`</div><div class="event-rows" style="height:${maxR*30+4}px;width:${dim*CW}px">`;
+    html+='</div>';
+    // Background grid cells (for borders)
+    html+=`<div class="event-rows" style="height:${maxR*30}px">`;
     for(let r=0;r<maxR;r++){html+=`<div class="event-row" style="grid-template-columns:${gridCols}">`;for(let d=1;d<=dim;d++)html+='<div class="event-cell"></div>';html+='</div>';}
-    for(const item of rows){const ev=item.event,c=CAT_COLORS[ev.category]||CAT_COLORS.other;
-      const leftPx=(item.startDay-1)*CW+1;
-      const widthPx=(item.endDay-item.startDay+1)*CW-2;
-      const top=item.row*30+3;
-      html+=`<div class="event-bar" data-eid="${ev.id}" style="left:${leftPx}px;width:${widthPx}px;top:${top}px;background:${c.bg}" onclick="openBarEdit('${ev.id}',event)" title="${esc(ev.name)}">${esc(ev.name)}</div>`;}
+    // Bar rows using grid-column
+    for(let r=0;r<maxR;r++){
+      const rowItems=rows.filter(i=>i.row===r);
+      if(!rowItems.length)continue;
+      html+=`<div class="event-bar-row" style="grid-template-columns:${gridCols};position:absolute;top:${r*30}px;left:0;right:0">`;
+      for(const item of rowItems){const ev=item.event,c=CAT_COLORS[ev.category]||CAT_COLORS.other;
+        html+=`<div class="event-bar-slot" style="grid-column:${item.startDay}/${item.endDay+1}"><div class="event-bar" data-eid="${ev.id}" style="background:${c.bg}" onclick="openBarEdit('${ev.id}',event)" title="${esc(ev.name)}">${esc(ev.name)}</div></div>`;}
+      html+='</div>';
+    }
     html+='</div></div></div>';
   }
   area.innerHTML=html;
