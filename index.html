@@ -120,14 +120,14 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
 .month-add-btn{width:26px;height:26px;border:1px solid var(--border);background:var(--surface);border-radius:4px;cursor:pointer;font-size:16px;color:var(--accent);display:flex;align-items:center;justify-content:center;transition:all 0.15s;}
 .month-add-btn:hover{background:var(--accent-light);border-color:var(--accent);}
 .calendar-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-.day-header-row{display:flex;border-bottom:1px solid var(--border-light);min-width:fit-content;}
-.day-header{width:40px;min-width:40px;text-align:center;padding:4px 0;font-size:11px;font-weight:500;color:var(--text-muted);border-right:1px solid var(--border-light);}
+.day-header-row{display:grid;border-bottom:1px solid var(--border-light);}
+.day-header{text-align:center;padding:4px 0;font-size:11px;font-weight:500;color:var(--text-muted);border-right:1px solid var(--border-light);}
 .day-header:last-child{border-right:none;}
 .day-header.sun{color:#c44;}
 .day-header.sat{color:#47a;}
-.event-rows{position:relative;min-height:32px;min-width:fit-content;}
-.event-row{display:flex;position:relative;height:30px;}
-.event-cell{width:40px;min-width:40px;border-right:1px solid var(--border-light);border-bottom:1px solid var(--border-light);}
+.event-rows{position:relative;min-height:32px;}
+.event-row{display:grid;height:30px;}
+.event-cell{border-right:1px solid var(--border-light);border-bottom:1px solid var(--border-light);}
 .event-cell:last-child{border-right:none;}
 .event-bar{position:absolute;height:24px;top:3px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px;z-index:2;text-shadow:0 1px 2px rgba(0,0,0,0.2);transition:box-shadow 0.15s;-webkit-tap-highlight-color:transparent;user-select:none;}
 .event-bar:hover,.event-bar:active{box-shadow:0 2px 8px rgba(0,0,0,0.25);}
@@ -204,14 +204,12 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
   .event-item-actions{opacity:1;}
   .user-badge{display:none;}
   .sync-status span:not(.sync-dot){display:none;}
-  .day-header{width:36px;min-width:36px;font-size:10px;}
-  .event-cell{width:36px;min-width:36px;}
+  .day-header{font-size:10px;}
   .event-bar{font-size:10px;height:22px;top:4px;}
   .event-row{height:28px;}
   .inline-popup{width:290px;}
 }
 @media(max-width:380px){
-  .day-header,.event-cell{width:32px;min-width:32px;}
   .header h1{font-size:13px;}
 }
 </style>
@@ -446,16 +444,20 @@ function renderEventList(){
 }
 function renderCalendar(){
   const area=document.getElementById('calendarArea'),dn=['日','月','火','水','木','金','土'];let html='';
+  const CW=40; // cell width in px
   for(let m=0;m<12;m++){
     const dim=new Date(currentYear,m+1,0).getDate(),me=getEventsForMonth(m),rows=assignRows(me),maxR=rows.length?Math.max(...rows.map(r=>r.row))+1:1;
+    const gridCols=`repeat(${dim},${CW}px)`;
     html+=`<div class="month-block" id="month-${m}"><div class="month-header"><span>${currentYear}年 ${m+1}月</span><button class="month-add-btn" onclick="openAddModalForMonth(${m})" title="${m+1}月に追加">+</button></div><div class="calendar-scroll">`;
-    html+='<div class="day-header-row">';
+    html+=`<div class="day-header-row" style="grid-template-columns:${gridCols};width:${dim*CW}px">`;
     for(let d=1;d<=dim;d++){const dow=new Date(currentYear,m,d).getDay();html+=`<div class="day-header${dow===0?' sun':dow===6?' sat':''}">${d}<br><span style="font-size:9px">${dn[dow]}</span></div>`;}
-    html+='</div><div class="event-rows" style="height:'+(maxR*30+4)+'px">';
-    for(let r=0;r<maxR;r++){html+='<div class="event-row">';for(let d=1;d<=dim;d++)html+='<div class="event-cell"></div>';html+='</div>';}
+    html+=`</div><div class="event-rows" style="height:${maxR*30+4}px;width:${dim*CW}px">`;
+    for(let r=0;r<maxR;r++){html+=`<div class="event-row" style="grid-template-columns:${gridCols}">`;for(let d=1;d<=dim;d++)html+='<div class="event-cell"></div>';html+='</div>';}
     for(const item of rows){const ev=item.event,c=CAT_COLORS[ev.category]||CAT_COLORS.other;
-      const left=((item.startDay-1)/dim*100).toFixed(3),w=((item.endDay-item.startDay+1)/dim*100).toFixed(3),top=item.row*30+3;
-      html+=`<div class="event-bar" data-eid="${ev.id}" style="left:${left}%;width:${w}%;top:${top}px;background:${c.bg}" onclick="openBarEdit('${ev.id}',event)" title="${esc(ev.name)}">${esc(ev.name)}</div>`;}
+      const leftPx=(item.startDay-1)*CW+1;
+      const widthPx=(item.endDay-item.startDay+1)*CW-2;
+      const top=item.row*30+3;
+      html+=`<div class="event-bar" data-eid="${ev.id}" style="left:${leftPx}px;width:${widthPx}px;top:${top}px;background:${c.bg}" onclick="openBarEdit('${ev.id}',event)" title="${esc(ev.name)}">${esc(ev.name)}</div>`;}
     html+='</div></div></div>';
   }
   area.innerHTML=html;
