@@ -216,11 +216,58 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
   .header h1{font-size:13px;}
 }
 
+/* ===== Shift UI ===== */
+.shift-modal-overlay{position:fixed;inset:0;background:rgba(44,40,32,0.45);z-index:200;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.2s;padding:10px;}
+.shift-modal-overlay.active{opacity:1;pointer-events:all;}
+.shift-modal{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);width:600px;max-width:100%;max-height:90vh;display:flex;flex-direction:column;transform:translateY(10px);transition:transform 0.2s;}
+.shift-modal-overlay.active .shift-modal{transform:translateY(0);}
+.shift-modal-header{padding:16px 20px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;justify-content:space-between;}
+.shift-modal-header h3{font-family:'Zen Maru Gothic',serif;font-size:15px;font-weight:700;}
+.shift-modal-body{flex:1;overflow-y:auto;padding:0;}
+.shift-date-row{display:flex;align-items:flex-start;border-bottom:1px solid var(--border-light);padding:8px 16px;gap:10px;}
+.shift-date-row:last-child{border-bottom:none;}
+.shift-date-label{width:70px;min-width:70px;font-size:12px;font-weight:600;padding-top:4px;color:var(--text);}
+.shift-date-label .dow{font-size:10px;font-weight:400;color:var(--text-muted);}
+.shift-date-label .dow.sun{color:#c44;}
+.shift-date-label .dow.sat{color:#47a;}
+.shift-members{flex:1;display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:30px;}
+.shift-tag{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:500;cursor:default;transition:opacity 0.1s;}
+.shift-tag .remove-tag{cursor:pointer;opacity:0.6;font-size:13px;line-height:1;margin-left:2px;}
+.shift-tag .remove-tag:hover{opacity:1;}
+.shift-add-member{display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border:1px dashed var(--border);border-radius:12px;font-size:11px;color:var(--text-muted);cursor:pointer;background:transparent;font-family:inherit;transition:all 0.15s;}
+.shift-add-member:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
+.shift-member-picker{position:absolute;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-md);z-index:210;max-height:200px;overflow-y:auto;min-width:140px;}
+.shift-member-picker-item{padding:6px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background 0.1s;}
+.shift-member-picker-item:hover{background:var(--surface-alt);}
+.shift-member-picker-item .mem-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.shift-member-picker-input{padding:6px 10px;border:none;border-bottom:1px solid var(--border-light);width:100%;font-size:12px;font-family:inherit;color:var(--text);outline:none;}
+.shift-modal-footer{padding:12px 20px;border-top:1px solid var(--border-light);display:flex;justify-content:space-between;align-items:center;}
+
+/* Member management */
+.member-manage-section{padding:12px 20px;border-bottom:1px solid var(--border-light);background:var(--surface-alt);}
+.member-manage-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.member-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:11px;border:1px solid var(--border);}
+.member-chip .remove-mem{cursor:pointer;opacity:0.5;font-size:12px;}
+.member-chip .remove-mem:hover{opacity:1;color:var(--danger);}
+.member-add-inline{display:inline-flex;gap:4px;align-items:center;}
+.member-add-inline input{padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:11px;width:80px;font-family:inherit;}
+.member-add-inline input:focus{outline:none;border-color:var(--accent);}
+
+/* Bar shift indicator */
+.bar-shift-dots{display:flex;gap:1px;margin-left:4px;flex-shrink:0;}
+.bar-shift-dot{width:6px;height:6px;border-radius:50%;border:1px solid rgba(255,255,255,0.5);}
+
+@media(max-width:768px){
+  .shift-modal{width:100%;max-width:100%;max-height:85vh;margin:0;border-radius:var(--radius-lg) var(--radius-lg) 0 0;align-self:flex-end;}
+  .shift-date-row{padding:6px 12px;}
+  .shift-date-label{width:55px;min-width:55px;font-size:11px;}
+}
+
 /* ===== Print ===== */
 @media print{
   @page{size:A4 landscape;margin:6mm 8mm;}
   body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:9px;}
-  .header,.sidebar,.sidebar-backdrop,.fab,.inline-popup,.popup-backdrop,.modal-overlay,.setup-overlay,.toast{display:none !important;}
+  .header,.sidebar,.sidebar-backdrop,.fab,.inline-popup,.popup-backdrop,.modal-overlay,.setup-overlay,.toast,.shift-modal-overlay,.shift-member-picker{display:none !important;}
   .main{display:block;height:auto;}
   .calendar-area{padding:0;overflow:visible;}
   .calendar-scroll{overflow:visible;}
@@ -338,8 +385,11 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
     </div>
   </div>
   <div class="inline-popup-footer">
-    <button class="btn btn-secondary btn-sm" onclick="closeInlinePopup()">キャンセル</button>
-    <button class="btn btn-primary btn-sm" onclick="inlineSave()">更新</button>
+    <button class="btn btn-secondary btn-sm" onclick="openShiftModal(inlineEditId)">シフト管理</button>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-secondary btn-sm" onclick="closeInlinePopup()">キャンセル</button>
+      <button class="btn btn-primary btn-sm" onclick="inlineSave()">更新</button>
+    </div>
   </div>
 </div>
 
@@ -397,10 +447,30 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
 
 <div class="toast" id="toast"></div>
 
+<!-- Shift Modal -->
+<div class="shift-modal-overlay" id="shiftOverlay" onclick="if(event.target===this)closeShiftModal()">
+  <div class="shift-modal">
+    <div class="shift-modal-header">
+      <h3 id="shiftModalTitle">シフト管理</h3>
+      <button class="icon-btn" onclick="closeShiftModal()" style="font-size:18px">&times;</button>
+    </div>
+    <div class="member-manage-section">
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;font-weight:500">登録メンバー</div>
+      <div class="member-manage-row" id="memberManageRow"></div>
+    </div>
+    <div class="shift-modal-body" id="shiftBody"></div>
+    <div class="shift-modal-footer">
+      <span style="font-size:11px;color:var(--text-muted)" id="shiftStatus"></span>
+      <button class="btn btn-secondary btn-sm" onclick="closeShiftModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ===== State =====
-let GAS_URL='',USER_NAME='',events=[],currentYear=new Date().getFullYear(),editingId=null,selectedCategory='tokai',filterCategory='all',syncInterval=null,isSyncing=false,inlineEditId=null,inlineEditCat='tokai';
+let GAS_URL='',USER_NAME='',events=[],shifts=[],members=[],currentYear=new Date().getFullYear(),editingId=null,selectedCategory='tokai',filterCategory='all',syncInterval=null,isSyncing=false,inlineEditId=null,inlineEditCat='tokai';
 const CAT_COLORS={tokai:{bg:'#4a7ab5',light:'#dce8f4',label:'東海'},kanto:{bg:'#5a9e6f',light:'#ddf0e3',label:'関東'},kansai:{bg:'#c47d2e',light:'#f5e8d4',label:'関西'},other:{bg:'#888888',light:'#e8e8e8',label:'その他'},special:{bg:'#9b59b6',light:'#ede0f4',label:'特別'}};
+const MEMBER_COLORS=['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#e84393','#00b894','#6c5ce7','#fd79a8','#00cec9'];
 function generateId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
 function isMobile(){return window.innerWidth<=768;}
 
@@ -431,8 +501,12 @@ function setSyncStatus(s,t){document.getElementById('syncDot').className='sync-d
 async function fetchEvents(){
   if(isSyncing)return;isSyncing=true;setSyncStatus('loading','同期中...');
   try{const r=await fetch(GAS_URL);const d=await r.json();
-    if(d.success&&d.events){events=d.events.map(ev=>({id:String(ev.id),name:String(ev.name),start:String(ev.start),end:String(ev.end),category:String(ev.category||'other'),note:String(ev.note||'')}));render();const n=new Date();setSyncStatus('ok',n.getHours()+':'+String(n.getMinutes()).padStart(2,'0'));}
-    else setSyncStatus('error','取得失敗');
+    if(d.success){
+      if(d.events)events=d.events.map(ev=>({id:String(ev.id),name:String(ev.name),start:String(ev.start),end:String(ev.end),category:String(ev.category||'other'),note:String(ev.note||'')}));
+      if(d.shifts)shifts=d.shifts.map(sh=>({eventId:String(sh.eventId),date:String(sh.date),memberName:String(sh.memberName)}));
+      if(d.members)members=d.members.map(m=>({name:String(m.name),color:String(m.color||'')}));
+      render();const n=new Date();setSyncStatus('ok',n.getHours()+':'+String(n.getMinutes()).padStart(2,'0'));
+    }else setSyncStatus('error','取得失敗');
   }catch(e){setSyncStatus('error','接続エラー');console.error(e);}isSyncing=false;
 }
 async function apiPost(body){
@@ -485,7 +559,10 @@ function renderCalendar(){
       if(!rowItems.length)continue;
       html+=`<div class="event-bar-row" style="grid-template-columns:${gridCols};position:absolute;top:${r*30}px;left:0;right:0">`;
       for(const item of rowItems){const ev=item.event,c=CAT_COLORS[ev.category]||CAT_COLORS.other;
-        html+=`<div class="event-bar-slot" style="grid-column:${item.startDay}/${item.endDay+1}"><div class="event-bar" data-eid="${ev.id}" style="background:${c.bg}" onclick="openBarEdit('${ev.id}',event)" title="${esc(ev.name)}">${esc(ev.name)}</div></div>`;}
+        const evShifts=getShiftsForEvent(ev.id);
+        const shiftCount=new Set(evShifts.map(s=>s.memberName)).size;
+        const shiftBadge=shiftCount>0?`<span style="margin-left:auto;font-size:9px;opacity:0.85;flex-shrink:0;padding-left:3px">${shiftCount}名</span>`:'';
+        html+=`<div class="event-bar-slot" style="grid-column:${item.startDay}/${item.endDay+1}"><div class="event-bar" data-eid="${ev.id}" style="background:${c.bg}" onclick="openBarEdit('${ev.id}',event)" title="${esc(ev.name)}">${esc(ev.name)}${shiftBadge}</div></div>`;}
       html+='</div>';
     }
     html+='</div></div></div>';
@@ -610,7 +687,7 @@ function esc(s){const d=document.createElement('div');d.textContent=s;return d.i
 function showToast(m,isErr){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(isErr?' error':'');clearTimeout(t._t);t._t=setTimeout(()=>t.className='toast',2500);}
 
 // ===== Keys =====
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeSettings();closeInlinePopup();}if(e.key==='n'&&(e.ctrlKey||e.metaKey)){e.preventDefault();openAddModal();}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closePicker();closeShiftModal();closeModal();closeSettings();closeInlinePopup();}if(e.key==='n'&&(e.ctrlKey||e.metaKey)){e.preventDefault();openAddModal();}});
 
 // ===== Print height adjustment =====
 window.addEventListener('beforeprint',()=>{
@@ -636,6 +713,179 @@ window.addEventListener('afterprint',()=>{
 
 // ===== Start =====
 function startApp(){fetchEvents();if(syncInterval)clearInterval(syncInterval);syncInterval=setInterval(fetchEvents,30000);}
+
+// ===== Shift Management =====
+let shiftEventId=null;
+let pickerTarget=null;
+
+function getShiftsForEvent(eventId){return shifts.filter(s=>s.eventId===eventId);}
+function getShiftsForDate(eventId,date){return shifts.filter(s=>s.eventId===eventId&&s.date===date).map(s=>s.memberName);}
+function getMemberColor(name){
+  const m=members.find(mm=>mm.name===name);
+  if(m&&m.color)return m.color;
+  // Auto-assign color based on name hash
+  let h=0;for(let i=0;i<name.length;i++)h=name.charCodeAt(i)+((h<<5)-h);
+  return MEMBER_COLORS[Math.abs(h)%MEMBER_COLORS.length];
+}
+
+function openShiftModal(eventId){
+  const ev=events.find(e=>e.id===eventId);if(!ev)return;
+  shiftEventId=eventId;
+  closeInlinePopup();
+  document.getElementById('shiftModalTitle').textContent=ev.name+' - シフト管理';
+  renderMemberManage();
+  renderShiftBody(ev);
+  document.getElementById('shiftOverlay').classList.add('active');
+}
+function closeShiftModal(){document.getElementById('shiftOverlay').classList.remove('active');shiftEventId=null;closePicker();}
+
+function renderMemberManage(){
+  const row=document.getElementById('memberManageRow');
+  let html=members.map(m=>{
+    const col=m.color||getMemberColor(m.name);
+    return `<span class="member-chip" style="background:${col}20;border-color:${col}60"><span style="color:${col}">${esc(m.name)}</span><span class="remove-mem" onclick="removeMember('${esc(m.name)}')">&times;</span></span>`;
+  }).join('');
+  html+=`<span class="member-add-inline"><input type="text" id="newMemberInput" placeholder="名前" onkeydown="if(event.key==='Enter')addNewMember()"><button class="btn btn-sm btn-secondary" onclick="addNewMember()" style="padding:3px 8px;font-size:10px">追加</button></span>`;
+  row.innerHTML=html;
+}
+
+async function addNewMember(){
+  const inp=document.getElementById('newMemberInput');
+  const name=inp.value.trim();if(!name)return;
+  const color=MEMBER_COLORS[members.length%MEMBER_COLORS.length];
+  const ok=await apiPostSilent({action:'member_add',name,color});
+  if(ok){members.push({name,color});renderMemberManage();renderShiftBody(events.find(e=>e.id===shiftEventId));}
+  inp.value='';
+}
+
+async function removeMember(name){
+  if(!confirm(`「${name}」をメンバーから削除しますか？`))return;
+  await apiPostSilent({action:'member_remove',name});
+  members=members.filter(m=>m.name!==name);
+  renderMemberManage();renderShiftBody(events.find(e=>e.id===shiftEventId));
+}
+
+function renderShiftBody(ev){
+  if(!ev)return;
+  const body=document.getElementById('shiftBody');
+  const s=new Date(ev.start),e=new Date(ev.end);
+  const dn=['日','月','火','水','木','金','土'];
+  let html='';
+  const cur=new Date(s);
+  while(cur<=e){
+    const dateStr=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');
+    const dow=cur.getDay();
+    const dowCls=dow===0?' sun':dow===6?' sat':'';
+    const dayShifts=getShiftsForDate(ev.id,dateStr);
+    html+=`<div class="shift-date-row">`;
+    html+=`<div class="shift-date-label">${cur.getMonth()+1}/${cur.getDate()}<span class="dow${dowCls}"> ${dn[dow]}</span></div>`;
+    html+=`<div class="shift-members" data-eid="${ev.id}" data-date="${dateStr}">`;
+    for(const name of dayShifts){
+      const col=getMemberColor(name);
+      html+=`<span class="shift-tag" style="background:${col}25;color:${col}">${esc(name)}<span class="remove-tag" onclick="removeShiftMember('${ev.id}','${dateStr}','${esc(name)}')">&times;</span></span>`;
+    }
+    html+=`<button class="shift-add-member" onclick="openPicker(this,'${ev.id}','${dateStr}')">+ 追加</button>`;
+    html+=`</div></div>`;
+    cur.setDate(cur.getDate()+1);
+  }
+  body.innerHTML=html;
+  // Count
+  const totalShifts=getShiftsForEvent(ev.id).length;
+  document.getElementById('shiftStatus').textContent=`${totalShifts}件のシフト登録済`;
+}
+
+// Member picker dropdown
+function openPicker(btn,eventId,date){
+  closePicker();
+  const picker=document.createElement('div');
+  picker.className='shift-member-picker';picker.id='activePicker';
+  const rect=btn.getBoundingClientRect();
+  picker.style.position='fixed';
+  picker.style.top=(rect.bottom+2)+'px';
+  picker.style.left=rect.left+'px';
+  if(rect.left+160>window.innerWidth)picker.style.left=(window.innerWidth-170)+'px';
+  if(rect.bottom+220>window.innerHeight){picker.style.top='';picker.style.bottom=(window.innerHeight-rect.top+2)+'px';}
+
+  const currentMembers=getShiftsForDate(eventId,date);
+  // Search input
+  let html=`<input class="shift-member-picker-input" id="pickerSearch" placeholder="検索/新規入力" oninput="filterPicker()">`;
+  // Registered members
+  const available=members.filter(m=>!currentMembers.includes(m.name));
+  html+='<div id="pickerList">';
+  for(const m of available){
+    const col=m.color||getMemberColor(m.name);
+    html+=`<div class="shift-member-picker-item" onclick="pickMember('${eventId}','${date}','${esc(m.name)}')"><span class="mem-dot" style="background:${col}"></span>${esc(m.name)}</div>`;
+  }
+  html+='</div>';
+  picker.innerHTML=html;
+  document.body.appendChild(picker);
+  pickerTarget={eventId,date};
+  setTimeout(()=>document.getElementById('pickerSearch').focus(),50);
+
+  // Close on outside click
+  const handler=e=>{if(!picker.contains(e.target)&&e.target!==btn){closePicker();document.removeEventListener('mousedown',handler);}};
+  setTimeout(()=>document.addEventListener('mousedown',handler),10);
+}
+
+function filterPicker(){
+  const q=document.getElementById('pickerSearch').value.trim().toLowerCase();
+  const list=document.getElementById('pickerList');if(!list||!pickerTarget)return;
+  const currentMembers=getShiftsForDate(pickerTarget.eventId,pickerTarget.date);
+  const available=members.filter(m=>!currentMembers.includes(m.name)&&m.name.toLowerCase().includes(q));
+  let html='';
+  for(const m of available){
+    const col=m.color||getMemberColor(m.name);
+    html+=`<div class="shift-member-picker-item" onclick="pickMember('${pickerTarget.eventId}','${pickerTarget.date}','${esc(m.name)}')"><span class="mem-dot" style="background:${col}"></span>${esc(m.name)}</div>`;
+  }
+  // If no match and has input, allow adding as temp member
+  if(q&&!members.find(m=>m.name.toLowerCase()===q)){
+    html+=`<div class="shift-member-picker-item" onclick="pickNewMember('${pickerTarget.eventId}','${pickerTarget.date}')" style="color:var(--accent);font-weight:500">+ 「${esc(document.getElementById('pickerSearch').value.trim())}」を追加</div>`;
+  }
+  list.innerHTML=html;
+}
+
+async function pickMember(eventId,date,name){
+  closePicker();
+  const current=getShiftsForDate(eventId,date);
+  current.push(name);
+  // Update local state immediately for responsiveness
+  shifts.push({eventId,date,memberName:name});
+  renderShiftBody(events.find(e=>e.id===eventId));
+  // Persist
+  await apiPostSilent({action:'shift_set',eventId,date,members:current});
+}
+
+async function pickNewMember(eventId,date){
+  const name=document.getElementById('pickerSearch').value.trim();if(!name)return;
+  closePicker();
+  // Add to members if not exists
+  if(!members.find(m=>m.name===name)){
+    const color=MEMBER_COLORS[members.length%MEMBER_COLORS.length];
+    members.push({name,color});
+    await apiPostSilent({action:'member_add',name,color});
+    renderMemberManage();
+  }
+  await pickMember(eventId,date,name);
+}
+
+async function removeShiftMember(eventId,date,name){
+  const current=getShiftsForDate(eventId,date).filter(n=>n!==name);
+  shifts=shifts.filter(s=>!(s.eventId===eventId&&s.date===date&&s.memberName===name));
+  renderShiftBody(events.find(e=>e.id===eventId));
+  await apiPostSilent({action:'shift_set',eventId,date,members:current});
+}
+
+function closePicker(){const p=document.getElementById('activePicker');if(p)p.remove();pickerTarget=null;}
+
+// Silent API post (no full re-fetch, for shift operations)
+async function apiPostSilent(body){
+  try{
+    const r=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({...body,user:USER_NAME})});
+    const d=await r.json();return d.success;
+  }catch(e){showToast('通信エラー',true);return false;}
+}
+
+// ===== Init =====
 initYearSelect();checkSetup();
 </script>
 </body>
