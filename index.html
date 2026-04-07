@@ -502,8 +502,8 @@ async function fetchEvents(){
   if(isSyncing)return;isSyncing=true;setSyncStatus('loading','同期中...');
   try{const r=await fetch(GAS_URL);const d=await r.json();
     if(d.success){
-      if(d.events)events=d.events.map(ev=>({id:String(ev.id),name:String(ev.name),start:String(ev.start),end:String(ev.end),category:String(ev.category||'other'),note:String(ev.note||'')}));
-      if(d.shifts)shifts=d.shifts.map(sh=>({eventId:String(sh.eventId),date:String(sh.date),memberName:String(sh.memberName)}));
+      if(d.events)events=d.events.map(ev=>({id:String(ev.id),name:String(ev.name),start:normDate(ev.start),end:normDate(ev.end),category:String(ev.category||'other'),note:String(ev.note||'')}));
+      if(d.shifts)shifts=d.shifts.map(sh=>({eventId:String(sh.eventId),date:normDate(sh.date),memberName:String(sh.memberName)}));
       if(d.members)members=d.members.map(m=>({name:String(m.name),color:String(m.color||'')}));
       render();const n=new Date();setSyncStatus('ok',n.getHours()+':'+String(n.getMinutes()).padStart(2,'0'));
     }else setSyncStatus('error','取得失敗');
@@ -682,6 +682,17 @@ async function exportExcel(){
 }
 
 // ===== Utils =====
+function normDate(v){
+  if(!v)return '';
+  const s=String(v);
+  // ISO形式やDate型から YYYY-MM-DD を抽出
+  const m=s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m)return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');
+  // スプレッドシートの日付文字列（例: Mon Apr 01 2026...）
+  const d=new Date(s);
+  if(!isNaN(d.getTime()))return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  return s;
+}
 function downloadBlob(b,f){const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=f;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u);}
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 function showToast(m,isErr){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(isErr?' error':'');clearTimeout(t._t);t._t=setTimeout(()=>t.className='toast',2500);}
