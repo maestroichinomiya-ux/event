@@ -126,15 +126,31 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
 .day-header.sun{color:#c44;}
 .day-header.sat{color:#47a;}
 .event-rows{position:relative;min-height:32px;}
+.event-rows-flow{position:relative;}
 .event-row{display:grid;height:30px;}
 .event-cell{border-right:1px solid var(--border-light);border-bottom:1px solid var(--border-light);}
 .event-cell:last-child{border-right:none;}
 /* Bars use grid placement inside a grid overlay */
-.event-bar-row{display:grid;height:30px;position:relative;}
+.event-bar-row{display:grid;height:30px;position:relative;z-index:2;}
 .event-bar-slot{position:relative;}
 .event-bar{position:absolute;height:24px;top:3px;left:1px;right:1px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px;z-index:2;text-shadow:0 1px 2px rgba(0,0,0,0.2);transition:box-shadow 0.15s;-webkit-tap-highlight-color:transparent;user-select:none;}
 .event-bar:hover,.event-bar:active{box-shadow:0 2px 8px rgba(0,0,0,0.25);}
 .event-bar:active{transform:scale(0.97);}
+/* Shift fill indicator on bar */
+.bar-fill{display:inline-flex;align-items:center;gap:2px;margin-left:auto;padding-left:4px;flex-shrink:0;font-size:9px;opacity:0.9;}
+.bar-fill-dot{width:7px;height:7px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.7);}
+.bar-fill-dot.full{background:rgba(255,255,255,0.9);}
+.bar-fill-dot.partial{background:rgba(255,255,255,0.4);}
+.bar-fill-dot.empty{background:transparent;}
+/* Shift expand rows under bar */
+.shift-expand{overflow:hidden;transition:max-height 0.25s ease;max-height:0;}
+.shift-expand.open{max-height:500px;}
+.shift-expand-inner{border:1px solid var(--border-light);border-top:none;border-radius:0 0 6px 6px;background:var(--surface-alt);margin:0 1px;}
+.shift-expand-row{display:grid;min-height:20px;border-bottom:1px solid var(--border-light);font-size:9px;}
+.shift-expand-row:last-child{border-bottom:none;}
+.shift-expand-cell{padding:1px 2px;text-align:center;border-right:1px solid var(--border-light);overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;}
+.shift-expand-cell:last-child{border-right:none;}
+.shift-name-tag{font-size:8px;line-height:1.2;padding:1px 3px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
 
 /* ===== Inline Edit Popup ===== */
 .inline-popup{position:fixed;z-index:150;background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);border:1px solid var(--border);width:320px;max-width:90vw;opacity:0;pointer-events:none;transition:opacity 0.15s,transform 0.15s;transform:translateY(4px);}
@@ -476,6 +492,7 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
 <script>
 // ===== State =====
 let GAS_URL='',USER_NAME='',events=[],shifts=[],members=[],currentYear=new Date().getFullYear(),editingId=null,selectedCategory='tokai',filterCategory='all',syncInterval=null,isSyncing=false,inlineEditId=null,inlineEditCat='tokai';
+const expandedEvents=new Set();
 const CAT_COLORS={tokai:{bg:'#4a7ab5',light:'#dce8f4',label:'東海'},kanto:{bg:'#5a9e6f',light:'#ddf0e3',label:'関東'},kansai:{bg:'#c47d2e',light:'#f5e8d4',label:'関西'},other:{bg:'#888888',light:'#e8e8e8',label:'その他'},special:{bg:'#9b59b6',light:'#ede0f4',label:'特別'}};
 const MEMBER_COLORS=['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#e84393','#00b894','#6c5ce7','#fd79a8','#00cec9'];
 function generateId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
@@ -557,20 +574,79 @@ function renderCalendar(){
     html+=`<div class="day-header-row" style="grid-template-columns:${gridCols}">`;
     for(let d=1;d<=dim;d++){const dow=new Date(currentYear,m,d).getDay();html+=`<div class="day-header${dow===0?' sun':dow===6?' sat':''}">${d}<br><span style="font-size:9px">${dn[dow]}</span></div>`;}
     html+='</div>';
-    // Background grid cells (for borders)
-    html+=`<div class="event-rows" data-rows="${maxR}" style="height:${maxR*30}px">`;
-    for(let r=0;r<maxR;r++){html+=`<div class="event-row" style="grid-template-columns:${gridCols}">`;for(let d=1;d<=dim;d++)html+='<div class="event-cell"></div>';html+='</div>';}
-    // Bar rows using grid-column
+    // Event rows with shift expand
+    html+='<div class="event-rows-flow">';
     for(let r=0;r<maxR;r++){
       const rowItems=rows.filter(i=>i.row===r);
-      if(!rowItems.length)continue;
-      html+=`<div class="event-bar-row" style="grid-template-columns:${gridCols};position:absolute;top:${r*30}px;left:0;right:0">`;
-      for(const item of rowItems){const ev=item.event,c=CAT_COLORS[ev.category]||CAT_COLORS.other;
-        const evShifts=getShiftsForEvent(ev.id);
-        const shiftCount=new Set(evShifts.map(s=>s.memberName)).size;
-        const shiftBadge=shiftCount>0?`<span style="margin-left:auto;font-size:9px;opacity:0.85;flex-shrink:0;padding-left:3px">${shiftCount}名</span>`:'';
-        html+=`<div class="event-bar-slot" style="grid-column:${item.startDay}/${item.endDay+1}"><div class="event-bar" data-eid="${ev.id}" style="background:${c.bg}" onclick="openBarEdit('${ev.id}',event)" title="${esc(ev.name)}">${esc(ev.name)}${shiftBadge}</div></div>`;}
+      // Background cells
+      html+=`<div class="event-row" style="grid-template-columns:${gridCols}">`;
+      for(let d=1;d<=dim;d++) html+='<div class="event-cell"></div>';
       html+='</div>';
+      // Bar overlay for this row
+      html+=`<div class="event-bar-row" style="grid-template-columns:${gridCols};margin-top:-30px">`;
+      for(const item of rowItems){
+        const ev=item.event,c=CAT_COLORS[ev.category]||CAT_COLORS.other;
+        const evShifts=getShiftsForEvent(ev.id);
+        // Calculate fill status per day
+        const totalDays=item.endDay-item.startDay+1;
+        let filledDays=0;
+        for(let d=item.startDay;d<=item.endDay;d++){
+          const dateStr=`${currentYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+          if(getShiftsForDate(ev.id,dateStr).length>0)filledDays++;
+        }
+        // Fill indicator
+        let fillHtml='';
+        if(totalDays<=14){
+          // Show dot per day
+          fillHtml='<span class="bar-fill">';
+          for(let d=item.startDay;d<=item.endDay;d++){
+            const dateStr=`${currentYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const ct=getShiftsForDate(ev.id,dateStr).length;
+            fillHtml+=`<span class="bar-fill-dot ${ct>0?'full':'empty'}"></span>`;
+          }
+          fillHtml+='</span>';
+        }else{
+          fillHtml=filledDays>0?`<span class="bar-fill">${filledDays}/${totalDays}</span>`:'';
+        }
+        const isOpen=expandedEvents.has(ev.id+'-'+m);
+        html+=`<div class="event-bar-slot" style="grid-column:${item.startDay}/${item.endDay+1}"><div class="event-bar" data-eid="${ev.id}" style="background:${c.bg}${isOpen?';border-radius:4px 4px 0 0':''}" onclick="toggleShiftExpand('${ev.id}',${m},event)" oncontextmenu="event.preventDefault();openBarEdit('${ev.id}',event)" title="${esc(ev.name)} - 長押しで編集">${esc(ev.name)}${fillHtml}</div></div>`;
+      }
+      html+='</div>';
+      // Shift expand rows (one per event in this row)
+      for(const item of rowItems){
+        const ev=item.event;
+        const isOpen=expandedEvents.has(ev.id+'-'+m);
+        const evShifts=getShiftsForEvent(ev.id);
+        if(isOpen&&evShifts.length>0){
+          // Find max members per day
+          let maxMem=0;
+          for(let d=item.startDay;d<=item.endDay;d++){
+            const dateStr=`${currentYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            maxMem=Math.max(maxMem,getShiftsForDate(ev.id,dateStr).length);
+          }
+          if(maxMem===0)maxMem=1;
+          const rowH=Math.max(18,maxMem*14+4);
+          html+=`<div class="shift-expand open" data-expand="${ev.id}-${m}" style="grid-column:1/-1">`;
+          html+=`<div class="shift-expand-inner"><div class="shift-expand-row" style="grid-template-columns:${gridCols};min-height:${rowH}px">`;
+          for(let d=1;d<=dim;d++){
+            if(d>=item.startDay&&d<=item.endDay){
+              const dateStr=`${currentYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+              const dayMembers=getShiftsForDate(ev.id,dateStr);
+              html+='<div class="shift-expand-cell">';
+              for(const nm of dayMembers){
+                const col=getMemberColor(nm);
+                html+=`<span class="shift-name-tag" style="color:${col}">${esc(nm)}</span>`;
+              }
+              html+='</div>';
+            }else{
+              html+='<div class="shift-expand-cell"></div>';
+            }
+          }
+          html+='</div></div></div>';
+        }else if(isOpen){
+          html+=`<div class="shift-expand open" data-expand="${ev.id}-${m}" style="padding:6px 10px;font-size:11px;color:var(--text-light);text-align:center;">シフト未登録 - <a href="#" onclick="event.preventDefault();openShiftModal('${ev.id}')" style="color:var(--accent)">シフトを登録</a></div>`;
+        }
+      }
     }
     html+='</div></div></div>';
   }
@@ -583,6 +659,27 @@ function getEventsForMonth(m){
 }
 function assignRows(me){const re=[];return me.map(item=>{let r=0;while(r<re.length&&re[r]>=item.startDay)r++;if(r>=re.length)re.push(0);re[r]=item.endDay;return{...item,row:r};});}
 
+// ===== Shift Expand Toggle =====
+let longPressTimer=null;
+function toggleShiftExpand(eventId,month,evt){
+  evt.stopPropagation();
+  const key=eventId+'-'+month;
+  if(expandedEvents.has(key))expandedEvents.delete(key);
+  else expandedEvents.add(key);
+  renderCalendar();
+}
+// Long press for mobile edit
+document.addEventListener('touchstart',e=>{
+  const bar=e.target.closest('.event-bar');
+  if(!bar)return;
+  longPressTimer=setTimeout(()=>{
+    const eid=bar.dataset.eid;
+    if(eid)openBarEdit(eid,e);
+    longPressTimer=null;
+  },500);
+},{passive:true});
+document.addEventListener('touchend',()=>{if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null;}},{passive:true});
+document.addEventListener('touchmove',()=>{if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null;}},{passive:true});
 // ===== Inline Popup Edit (on bar click) =====
 function openBarEdit(id,evt){
   const ev=events.find(e=>e.id===id);if(!ev)return;
@@ -710,26 +807,10 @@ function showToast(m,isErr){const t=document.getElementById('toast');t.textConte
 // ===== Keys =====
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closePicker();closeShiftModal();closeModal();closeSettings();closeInlinePopup();}if(e.key==='n'&&(e.ctrlKey||e.metaKey)){e.preventDefault();openAddModal();}});
 
-// ===== Print height adjustment =====
+// ===== Print =====
 window.addEventListener('beforeprint',()=>{
-  document.querySelectorAll('.event-rows').forEach(el=>{
-    const rows=parseInt(el.dataset.rows)||1;
-    el.style.height=(rows*18)+'px';
-  });
-  document.querySelectorAll('.event-bar-row').forEach(el=>{
-    const curTop=parseInt(el.style.top)||0;
-    el.dataset.origTop=curTop;
-    el.style.top=Math.round(curTop/30*18)+'px';
-  });
-});
-window.addEventListener('afterprint',()=>{
-  document.querySelectorAll('.event-rows').forEach(el=>{
-    const rows=parseInt(el.dataset.rows)||1;
-    el.style.height=(rows*30)+'px';
-  });
-  document.querySelectorAll('.event-bar-row').forEach(el=>{
-    el.style.top=(el.dataset.origTop||0)+'px';
-  });
+  // Collapse all shift expands for cleaner print
+  expandedEvents.clear();renderCalendar();
 });
 
 // ===== Start =====
