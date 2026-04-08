@@ -953,58 +953,57 @@ function filterPicker(){
 
 async function pickMember(eventId,date,name){
   closePicker();
-  // Prevent duplicate
-  const current=getShiftsForDate(eventId,date);
-  if(current.includes(name))return;
-  const updated=[...current,name];
-  // Send to GAS first, then re-fetch
-  const ok=await apiPostSilent({action:'shift_set',eventId,date,members:updated});
-  if(ok){
-    // Re-fetch shifts from GAS to ensure consistency
-    await refetchShifts();
-  }
-  renderShiftBody(events.find(e=>e.id===eventId));
+  // 重複チェック
+  if(getShiftsForDate(eventId,date).includes(name))return;
+  // ローカルに即追加
+  shifts.push({eventId,date,memberName:name});
+  // UI即反映
+  if(shiftEventId)renderShiftBody(events.find(e=>e.id===shiftEventId));
   renderCalendar();
+  // バックグラウンドでGASに保存
+  saveShiftToGAS(eventId,date);
 }
 
 async function pickNewMember(eventId,date){
-  const name=document.getElementById('pickerSearch').value.trim();if(!name)return;
+  const inp=document.getElementById('pickerSearch');
+  const name=inp?inp.value.trim():'';
+  if(!name)return;
   closePicker();
   if(!members.find(m=>m.name===name)){
     const color=MEMBER_COLORS[members.length%MEMBER_COLORS.length];
     members.push({name,color});
-    await apiPostSilent({action:'member_add',name,color});
     renderMemberManage();
+    // バックグラウンドでメンバー保存
+    fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'member_add',name,color,user:USER_NAME})}).catch(()=>{});
   }
-  await pickMember(eventId,date,name);
+  pickMember(eventId,date,name);
 }
 
 async function removeShiftMember(eventId,date,name){
-  const updated=getShiftsForDate(eventId,date).filter(n=>n!==name);
-  const ok=await apiPostSilent({action:'shift_set',eventId,date,members:updated});
-  if(ok){
-    await refetchShifts();
-  }
-  renderShiftBody(events.find(e=>e.id===eventId));
+  // ローカルから即削除
+  shifts=shifts.filter(s=>!(s.eventId===eventId&&s.date===date&&s.memberName===name));
+  // UI即反映
+  if(shiftEventId)renderShiftBody(events.find(e=>e.id===shiftEventId));
   renderCalendar();
+  // バックグラウンドでGASに保存
+  saveShiftToGAS(eventId,date);
 }
 
-// Re-fetch only shifts data from GAS (lightweight sync)
-async function refetchShifts(){
-  try{
-    const r=await fetch(GAS_URL);const d=await r.json();
-    if(d.success&&d.shifts){
-      shifts=d.shifts.map(sh=>({eventId:String(sh.eventId),date:normDate(sh.date),memberName:String(sh.memberName)}));
-    }
-    if(d.members){
-      members=d.members.map(m=>({name:String(m.name),color:String(m.color||'')}));
-    }
-  }catch(e){console.error('refetchShifts error:',e);}
+// GASにその日のシフト全体を送信（バックグラウンド）
+function saveShiftToGAS(eventId,date){
+  const currentMembers=getShiftsForDate(eventId,date);
+  fetch(GAS_URL,{
+    method:'POST',
+    headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify({action:'shift_set',eventId,date,members:currentMembers,user:USER_NAME})
+  }).then(r=>r.json()).then(d=>{
+    if(!d.success)console.error('shift save failed:',d.error);
+  }).catch(e=>console.error('shift save error:',e));
 }
 
 function closePicker(){const p=document.getElementById('activePicker');if(p)p.remove();pickerTarget=null;}
 
-// Silent API post (no full re-fetch, for shift operations)
+// Silent API post (for non-shift operations)
 async function apiPostSilent(body){
   try{
     const r=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({...body,user:USER_NAME})});
