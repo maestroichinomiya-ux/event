@@ -531,8 +531,8 @@ function saveSettings(){const u=document.getElementById('settingsUrl').value.tri
 // ===== API =====
 function setSyncStatus(s,t){document.getElementById('syncDot').className='sync-dot'+(s==='loading'?' loading':s==='error'?' error':'');document.getElementById('syncText').textContent=t;}
 async function fetchEvents(){
-  // 保存中または保存直後5秒間は自動同期をスキップ
-  if(isSyncing||pendingSaves>0||(Date.now()-lastSaveTime<5000))return;
+  // 保存中または保存直後10秒間は自動同期をスキップ
+  if(isSyncing||pendingSaves>0||(Date.now()-lastSaveTime<10000))return;
   isSyncing=true;setSyncStatus('loading','同期中...');
   try{const r=await fetch(GAS_URL);const d=await r.json();
     if(d.success){
@@ -997,11 +997,9 @@ function filterPicker(){
 async function pickMember(eventId,date,name){
   closePicker();
   if(getShiftsForDate(eventId,date).includes(name))return;
-  // ローカルに即追加してUI反映
   shifts.push({eventId,date,memberName:name});
   updateShiftUI();
-  // GASに保存して結果を待ってから再取得
-  await saveAndResync(eventId,date);
+  bgSave(eventId,date);
 }
 
 async function pickNewMember(eventId,date){
@@ -1013,44 +1011,51 @@ async function pickNewMember(eventId,date){
     const color=MEMBER_COLORS[members.length%MEMBER_COLORS.length];
     members.push({name,color});
     renderMemberManage();
-    try{await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'member_add',name,color,user:USER_NAME})});}catch(e){}
+    bgPost({action:'member_add',name,color});
   }
-  await pickMember(eventId,date,name);
+  pickMember(eventId,date,name);
 }
 
-async function removeShiftMember(eventId,date,name){
-  // ローカルから即削除してUI反映
+function removeShiftMember(eventId,date,name){
   shifts=shifts.filter(s=>!(s.eventId===eventId&&s.date===date&&s.memberName===name));
   updateShiftUI();
-  // GASに保存して結果を待ってから再取得
-  await saveAndResync(eventId,date);
+  bgSave(eventId,date);
 }
 
-// UI更新（シフトモーダルとカレンダー両方）
 function updateShiftUI(){
   if(shiftEventId){const sev=events.find(e=>e.id===shiftEventId);if(sev)renderShiftBody(sev);}
   renderCalendar();
 }
 
-// GASに保存→完了を待つ→GASから再取得してローカルを正規化
-async function saveAndResync(eventId,date){
-  const currentMembers=getShiftsForDate(eventId,date);
-  pendingSaves++;
-  try{
-    const r=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'shift_set',eventId,date,members:currentMembers,user:USER_NAME})});
-    const d=await r.json();
-    if(!d.success)console.error('shift save failed:',d.error);
-  }catch(e){console.error('shift save error:',e);}
-  pendingSaves--;
-  lastSaveTime=Date.now();
-  // 保存完了後にGASから最新データを取得してローカルを同期
-  try{
-    const r2=await fetch(GAS_URL);const d2=await r2.json();
-    if(d2.success&&d2.shifts){
-      shifts=d2.shifts.map(sh=>({eventId:String(sh.eventId),date:normDate(sh.date),memberName:String(sh.memberName)}));
-      updateShiftUI();
-    }
-  }catch(e){console.error('resync error:',e);}
+// バックグラウンド保存（結果を待たない、UIをブロックしない）
+let saveQueue=new Map(); // eventId+date → debounceタイマー
+function bgSave(eventId,date){
+  const key=eventId+'|'+date;
+  // 100msデバウンス（連続操作をまとめる）
+  if(saveQueue.has(key))clearTimeout(saveQueue.get(key));
+  saveQueue.set(key,setTimeout(()=>{
+    saveQueue.delete(key);
+    const mems=getShiftsForDate(eventId,date);
+    pendingSaves++;
+    lastSaveTime=Date.now();
+    fetch(GAS_URL,{
+      method:'POST',
+      headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({action:'shift_set',eventId,date,members:mems,user:USER_NAME})
+    }).then(r=>r.json()).then(d=>{
+      pendingSaves--;
+      lastSaveTime=Date.now();
+      if(!d.success)showToast('保存失敗',true);
+    }).catch(e=>{
+      pendingSaves--;
+      lastSaveTime=Date.now();
+      console.error('bgSave error:',e);
+    });
+  },100));
+}
+
+function bgPost(body){
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({...body,user:USER_NAME})}).catch(()=>{});
 }
 
 function closePicker(){const p=document.getElementById('activePicker');if(p)p.remove();pickerTarget=null;}
