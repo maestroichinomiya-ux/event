@@ -919,7 +919,8 @@ function openPicker(btn,eventId,date){
   html+='<div id="pickerList">';
   for(const m of available){
     const col=m.color||getMemberColor(m.name);
-    html+=`<div class="shift-member-picker-item" onclick="pickMember('${eventId}','${date}','${esc(m.name)}')"><span class="mem-dot" style="background:${col}"></span>${esc(m.name)}</div>`;
+    const sn=m.name.replace(/'/g,"\\'");
+    html+=`<div class="shift-member-picker-item" onclick="pickMember('${eventId}','${date}','${sn}')"><span class="mem-dot" style="background:${col}"></span>${esc(m.name)}</div>`;
   }
   html+='</div>';
   picker.innerHTML=html;
@@ -940,7 +941,8 @@ function filterPicker(){
   let html='';
   for(const m of available){
     const col=m.color||getMemberColor(m.name);
-    html+=`<div class="shift-member-picker-item" onclick="pickMember('${pickerTarget.eventId}','${pickerTarget.date}','${esc(m.name)}')"><span class="mem-dot" style="background:${col}"></span>${esc(m.name)}</div>`;
+    const sn=m.name.replace(/'/g,"\\'");
+    html+=`<div class="shift-member-picker-item" onclick="pickMember('${pickerTarget.eventId}','${pickerTarget.date}','${sn}')"><span class="mem-dot" style="background:${col}"></span>${esc(m.name)}</div>`;
   }
   // If no match and has input, allow adding as temp member
   if(q&&!members.find(m=>m.name.toLowerCase()===q)){
@@ -951,18 +953,23 @@ function filterPicker(){
 
 async function pickMember(eventId,date,name){
   closePicker();
+  // Prevent duplicate
   const current=getShiftsForDate(eventId,date);
-  current.push(name);
-  shifts.push({eventId,date,memberName:name});
+  if(current.includes(name))return;
+  const updated=[...current,name];
+  // Send to GAS first, then re-fetch
+  const ok=await apiPostSilent({action:'shift_set',eventId,date,members:updated});
+  if(ok){
+    // Re-fetch shifts from GAS to ensure consistency
+    await refetchShifts();
+  }
   renderShiftBody(events.find(e=>e.id===eventId));
   renderCalendar();
-  await apiPostSilent({action:'shift_set',eventId,date,members:current});
 }
 
 async function pickNewMember(eventId,date){
   const name=document.getElementById('pickerSearch').value.trim();if(!name)return;
   closePicker();
-  // Add to members if not exists
   if(!members.find(m=>m.name===name)){
     const color=MEMBER_COLORS[members.length%MEMBER_COLORS.length];
     members.push({name,color});
@@ -973,11 +980,26 @@ async function pickNewMember(eventId,date){
 }
 
 async function removeShiftMember(eventId,date,name){
-  const current=getShiftsForDate(eventId,date).filter(n=>n!==name);
-  shifts=shifts.filter(s=>!(s.eventId===eventId&&s.date===date&&s.memberName===name));
+  const updated=getShiftsForDate(eventId,date).filter(n=>n!==name);
+  const ok=await apiPostSilent({action:'shift_set',eventId,date,members:updated});
+  if(ok){
+    await refetchShifts();
+  }
   renderShiftBody(events.find(e=>e.id===eventId));
   renderCalendar();
-  await apiPostSilent({action:'shift_set',eventId,date,members:current});
+}
+
+// Re-fetch only shifts data from GAS (lightweight sync)
+async function refetchShifts(){
+  try{
+    const r=await fetch(GAS_URL);const d=await r.json();
+    if(d.success&&d.shifts){
+      shifts=d.shifts.map(sh=>({eventId:String(sh.eventId),date:normDate(sh.date),memberName:String(sh.memberName)}));
+    }
+    if(d.members){
+      members=d.members.map(m=>({name:String(m.name),color:String(m.color||'')}));
+    }
+  }catch(e){console.error('refetchShifts error:',e);}
 }
 
 function closePicker(){const p=document.getElementById('activePicker');if(p)p.remove();pickerTarget=null;}
