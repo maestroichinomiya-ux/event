@@ -143,14 +143,12 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
 .bar-fill-dot.partial{background:rgba(255,255,255,0.4);}
 .bar-fill-dot.empty{background:transparent;}
 /* Shift expand rows under bar */
-.shift-expand{overflow:hidden;transition:max-height 0.25s ease;max-height:0;}
-.shift-expand.open{max-height:500px;}
-.shift-expand-inner{border:1px solid var(--border-light);border-top:none;border-radius:0 0 6px 6px;background:var(--surface-alt);margin:0 1px;}
+.shift-expand-inner{border:1px solid var(--border-light);border-top:none;border-radius:0 0 6px 6px;background:var(--surface-alt);overflow-x:auto;-webkit-overflow-scrolling:touch;}
 .shift-expand-row{display:grid;min-height:22px;border-bottom:1px solid var(--border-light);font-size:11px;}
 .shift-expand-row:last-child{border-bottom:none;}
-.shift-expand-cell{padding:2px 1px;text-align:center;border-right:1px solid var(--border-light);overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:1px;}
+.shift-expand-cell{padding:2px 1px;text-align:center;border-right:1px solid var(--border-light);overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:1px;min-width:0;}
 .shift-expand-cell:last-child{border-right:none;}
-.shift-name-tag{font-size:11px;line-height:1.4;padding:0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;font-weight:500;color:var(--text);}
+.shift-name-tag{font-size:10px;line-height:1.3;padding:1px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;font-weight:500;color:var(--text);}
 
 /* ===== Inline Edit Popup ===== */
 .inline-popup{position:fixed;z-index:150;background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);border:1px solid var(--border);width:320px;max-width:90vw;opacity:0;pointer-events:none;transition:opacity 0.15s,transform 0.15s;transform:translateY(4px);}
@@ -640,7 +638,7 @@ function renderCalendar(){
           }
           if(maxMem===0)maxMem=1;
           const rowH=Math.max(24,maxMem*18+6);
-          html+=`<div class="shift-expand-inner" style="margin:0 1px"><div class="shift-expand-row" style="grid-template-columns:${gridCols};min-height:${rowH}px">`;
+          html+=`<div class="shift-expand-inner"><div class="shift-expand-row" style="grid-template-columns:${gridCols};min-height:${rowH}px">`;
           for(let d=1;d<=dim;d++){
             if(d>=item.startDay&&d<=item.endDay){
               const ds=`${currentYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -835,13 +833,16 @@ async function exportExcel(){
 // ===== Utils =====
 function normDate(v){
   if(!v)return '';
-  const s=String(v);
-  // ISO形式やDate型から YYYY-MM-DD を抽出
-  const m=s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if(m)return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');
-  // スプレッドシートの日付文字列（例: Mon Apr 01 2026...）
-  const d=new Date(s);
-  if(!isNaN(d.getTime()))return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const s=String(v).trim();
+  // 純粋なYYYY-MM-DD（Tなし）
+  const pure=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(pure)return pure[1]+'-'+pure[2].padStart(2,'0')+'-'+pure[3].padStart(2,'0');
+  // ISO形式（Tあり）→ YYYY-MM-DD部分だけ取る（UTC変換しない）
+  const iso=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})T/);
+  if(iso)return iso[1]+'-'+iso[2].padStart(2,'0')+'-'+iso[3].padStart(2,'0');
+  // その他のYYYY-MM-DD含む文字列
+  const any=s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(any)return any[1]+'-'+any[2].padStart(2,'0')+'-'+any[3].padStart(2,'0');
   return s;
 }
 function downloadBlob(b,f){const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=f;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u);}
