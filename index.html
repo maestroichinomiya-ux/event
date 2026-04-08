@@ -131,7 +131,7 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
 .event-cell{border-right:1px solid var(--border-light);border-bottom:1px solid var(--border-light);}
 .event-cell:last-child{border-right:none;}
 /* Bars use grid placement inside a grid overlay */
-.event-bar-row{display:grid;height:34px;position:relative;z-index:2;}
+.event-bar-row{display:grid;height:34px;position:absolute;top:0;left:0;right:0;z-index:2;}
 .event-bar-slot{position:relative;}
 .event-bar{position:absolute;height:28px;top:3px;left:1px;right:1px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#fff;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;z-index:2;text-shadow:0 1px 2px rgba(0,0,0,0.2);transition:box-shadow 0.15s;-webkit-tap-highlight-color:transparent;user-select:none;}
 .event-bar:hover,.event-bar:active{box-shadow:0 2px 8px rgba(0,0,0,0.25);}
@@ -226,7 +226,7 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
   .day-header{font-size:11px;}
   .event-bar{font-size:11px;height:26px;top:3px;}
   .event-row{height:32px;}
-  .event-bar-row{height:32px;margin-top:-32px !important;}
+  .event-bar-row{height:32px;}
   .shift-name-tag{font-size:10px;}
   .shift-expand-cell{padding:1px;}
   .shift-expand-row{min-height:20px !important;}
@@ -501,7 +501,8 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
 // ===== State =====
 let GAS_URL='',USER_NAME='',events=[],shifts=[],members=[],currentYear=new Date().getFullYear(),editingId=null,selectedCategory='tokai',filterCategory='all',syncInterval=null,isSyncing=false,inlineEditId=null,inlineEditCat='tokai';
 const expandedEvents=new Set();
-let pendingSaves=0; // 保存中のリクエスト数を追跡
+let pendingSaves=0;
+let lastSaveTime=0;
 const CAT_COLORS={tokai:{bg:'#4a7ab5',light:'#dce8f4',label:'東海'},kanto:{bg:'#5a9e6f',light:'#ddf0e3',label:'関東'},kansai:{bg:'#c47d2e',light:'#f5e8d4',label:'関西'},other:{bg:'#888888',light:'#e8e8e8',label:'その他'},special:{bg:'#9b59b6',light:'#ede0f4',label:'特別'}};
 const MEMBER_COLORS=['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#e84393','#00b894','#6c5ce7','#fd79a8','#00cec9'];
 function generateId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
@@ -532,7 +533,9 @@ function saveSettings(){const u=document.getElementById('settingsUrl').value.tri
 // ===== API =====
 function setSyncStatus(s,t){document.getElementById('syncDot').className='sync-dot'+(s==='loading'?' loading':s==='error'?' error':'');document.getElementById('syncText').textContent=t;}
 async function fetchEvents(){
-  if(isSyncing||pendingSaves>0)return;isSyncing=true;setSyncStatus('loading','同期中...');
+  // 保存中または保存直後5秒間は自動同期をスキップ
+  if(isSyncing||pendingSaves>0||(Date.now()-lastSaveTime<5000))return;
+  isSyncing=true;setSyncStatus('loading','同期中...');
   try{const r=await fetch(GAS_URL);const d=await r.json();
     if(d.success){
       if(d.events)events=d.events.map(ev=>({id:String(ev.id),name:String(ev.name),start:normDate(ev.start),end:normDate(ev.end),category:String(ev.category||'other'),note:String(ev.note||'')}));
@@ -586,81 +589,76 @@ function renderCalendar(){
     html+=`<div class="day-header-row" style="grid-template-columns:${gridCols}">`;
     for(let d=1;d<=dim;d++){const dow=new Date(currentYear,m,d).getDay();html+=`<div class="day-header${dow===0?' sun':dow===6?' sat':''}">${d}<br><span style="font-size:9px">${dn[dow]}</span></div>`;}
     html+='</div>';
-    // Event rows with shift expand
-    html+='<div class="event-rows-flow">';
+    // Event rows
     for(let r=0;r<maxR;r++){
       const rowItems=rows.filter(i=>i.row===r);
-      // Background cells
+      // Bar row: grid背景セル + 上にバーを重ねる
+      html+=`<div style="position:relative">`;
+      // 背景グリッド（罫線用）
       html+=`<div class="event-row" style="grid-template-columns:${gridCols}">`;
       for(let d=1;d<=dim;d++) html+='<div class="event-cell"></div>';
       html+='</div>';
-      // Bar overlay for this row
-      html+=`<div class="event-bar-row" style="grid-template-columns:${gridCols};margin-top:-34px">`;
+      // バー（背景の上に絶対配置）
+      html+=`<div class="event-bar-row" style="grid-template-columns:${gridCols}">`;
       for(const item of rowItems){
         const ev=item.event,c=CAT_COLORS[ev.category]||CAT_COLORS.other;
         const evShifts=getShiftsForEvent(ev.id);
-        // Calculate fill status per day
         const totalDays=item.endDay-item.startDay+1;
         let filledDays=0;
         for(let d=item.startDay;d<=item.endDay;d++){
-          const dateStr=`${currentYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-          if(getShiftsForDate(ev.id,dateStr).length>0)filledDays++;
+          const ds=`${currentYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+          if(getShiftsForDate(ev.id,ds).length>0)filledDays++;
         }
-        // Fill indicator
         let fillHtml='';
         if(totalDays<=14){
-          // Show dot per day
           fillHtml='<span class="bar-fill">';
           for(let d=item.startDay;d<=item.endDay;d++){
-            const dateStr=`${currentYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            const ct=getShiftsForDate(ev.id,dateStr).length;
-            fillHtml+=`<span class="bar-fill-dot ${ct>0?'full':'empty'}"></span>`;
+            const ds=`${currentYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            fillHtml+=`<span class="bar-fill-dot ${getShiftsForDate(ev.id,ds).length>0?'full':'empty'}"></span>`;
           }
           fillHtml+='</span>';
-        }else{
-          fillHtml=filledDays>0?`<span class="bar-fill">${filledDays}/${totalDays}</span>`:'';
+        }else if(filledDays>0){
+          fillHtml=`<span class="bar-fill">${filledDays}/${totalDays}</span>`;
         }
         const isOpen=expandedEvents.has(ev.id+'-'+m);
-        html+=`<div class="event-bar-slot" style="grid-column:${item.startDay}/${item.endDay+1}"><div class="event-bar" data-eid="${ev.id}" data-month="${m}" style="background:${c.bg}${isOpen?';border-radius:4px 4px 0 0':''}" onclick="if(!isMobile())toggleShiftExpand('${ev.id}',${m},event)" oncontextmenu="event.preventDefault();openBarEdit('${ev.id}',event)" title="${esc(ev.name)}">${esc(ev.name)}${fillHtml}</div></div>`;
+        html+=`<div class="event-bar-slot" style="grid-column:${item.startDay}/${item.endDay+1}"><div class="event-bar" data-eid="${ev.id}" data-month="${m}" style="background:${c.bg}${isOpen?';border-radius:4px 4px 0 0':''}" onclick="if(!isMobile())toggleShiftExpand('${ev.id}',${m},event)" oncontextmenu="event.preventDefault();openBarEdit('${ev.id}',event)">${esc(ev.name)}${fillHtml}</div></div>`;
       }
       html+='</div>';
-      // Shift expand rows (one per event in this row)
+      html+='</div>'; // position:relative wrapper end
+
+      // シフト展開行（バーの直下に同じgridで配置）
       for(const item of rowItems){
         const ev=item.event;
         const isOpen=expandedEvents.has(ev.id+'-'+m);
+        if(!isOpen)continue;
         const evShifts=getShiftsForEvent(ev.id);
-        if(isOpen&&evShifts.length>0){
-          // Find max members per day
+        if(evShifts.length>0){
           let maxMem=0;
           for(let d=item.startDay;d<=item.endDay;d++){
-            const dateStr=`${currentYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            maxMem=Math.max(maxMem,getShiftsForDate(ev.id,dateStr).length);
+            const ds=`${currentYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            maxMem=Math.max(maxMem,getShiftsForDate(ev.id,ds).length);
           }
           if(maxMem===0)maxMem=1;
           const rowH=Math.max(24,maxMem*18+6);
-          html+=`<div class="shift-expand open" data-expand="${ev.id}-${m}" style="grid-column:1/-1">`;
-          html+=`<div class="shift-expand-inner"><div class="shift-expand-row" style="grid-template-columns:${gridCols};min-height:${rowH}px">`;
+          html+=`<div class="shift-expand-inner" style="margin:0 1px"><div class="shift-expand-row" style="grid-template-columns:${gridCols};min-height:${rowH}px">`;
           for(let d=1;d<=dim;d++){
             if(d>=item.startDay&&d<=item.endDay){
-              const dateStr=`${currentYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-              const dayMembers=getShiftsForDate(ev.id,dateStr);
+              const ds=`${currentYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+              const dayMem=getShiftsForDate(ev.id,ds);
               html+='<div class="shift-expand-cell">';
-              for(const nm of dayMembers){
-                const col=getMemberColor(nm);
-                html+=`<span class="shift-name-tag">${esc(nm)}</span>`;
-              }
+              for(const nm of dayMem) html+=`<span class="shift-name-tag">${esc(nm)}</span>`;
               html+='</div>';
             }else{
-              html+='<div class="shift-expand-cell" style="background:transparent"></div>';
+              html+='<div class="shift-expand-cell" style="opacity:0.3"></div>';
             }
           }
-          html+='</div></div></div>';
-        }else if(isOpen){
-          html+=`<div class="shift-expand open" data-expand="${ev.id}-${m}" style="padding:6px 10px;font-size:11px;color:var(--text-light);text-align:center;">シフト未登録 - <a href="#" onclick="event.preventDefault();openShiftModal('${ev.id}')" style="color:var(--accent)">シフトを登録</a></div>`;
+          html+='</div></div>';
+        }else{
+          html+=`<div style="padding:6px 10px;font-size:12px;color:var(--text-light);text-align:center;background:var(--surface-alt);border:1px solid var(--border-light);border-top:none;border-radius:0 0 6px 6px;margin:0 1px;">シフト未登録 - <a href="#" onclick="event.preventDefault();openShiftModal('${ev.id}')" style="color:var(--accent)">登録する</a></div>`;
         }
       }
     }
-    html+='</div></div></div>';
+    html+='</div></div>';
   }
   area.innerHTML=html;
 }
@@ -997,15 +995,12 @@ function filterPicker(){
 
 async function pickMember(eventId,date,name){
   closePicker();
-  // 重複チェック
   if(getShiftsForDate(eventId,date).includes(name))return;
-  // ローカルに即追加
+  // ローカルに即追加してUI反映
   shifts.push({eventId,date,memberName:name});
-  // UI即反映
-  if(shiftEventId)renderShiftBody(events.find(e=>e.id===shiftEventId));
-  renderCalendar();
-  // バックグラウンドでGASに保存
-  saveShiftToGAS(eventId,date);
+  updateShiftUI();
+  // GASに保存して結果を待ってから再取得
+  await saveAndResync(eventId,date);
 }
 
 async function pickNewMember(eventId,date){
@@ -1017,34 +1012,44 @@ async function pickNewMember(eventId,date){
     const color=MEMBER_COLORS[members.length%MEMBER_COLORS.length];
     members.push({name,color});
     renderMemberManage();
-    // バックグラウンドでメンバー保存
-    fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'member_add',name,color,user:USER_NAME})}).catch(()=>{});
+    try{await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'member_add',name,color,user:USER_NAME})});}catch(e){}
   }
-  pickMember(eventId,date,name);
+  await pickMember(eventId,date,name);
 }
 
 async function removeShiftMember(eventId,date,name){
-  // ローカルから即削除
+  // ローカルから即削除してUI反映
   shifts=shifts.filter(s=>!(s.eventId===eventId&&s.date===date&&s.memberName===name));
-  // UI即反映
-  if(shiftEventId)renderShiftBody(events.find(e=>e.id===shiftEventId));
-  renderCalendar();
-  // バックグラウンドでGASに保存
-  saveShiftToGAS(eventId,date);
+  updateShiftUI();
+  // GASに保存して結果を待ってから再取得
+  await saveAndResync(eventId,date);
 }
 
-// GASにその日のシフト全体を送信（バックグラウンド）
-function saveShiftToGAS(eventId,date){
-  pendingSaves++;
+// UI更新（シフトモーダルとカレンダー両方）
+function updateShiftUI(){
+  if(shiftEventId){const sev=events.find(e=>e.id===shiftEventId);if(sev)renderShiftBody(sev);}
+  renderCalendar();
+}
+
+// GASに保存→完了を待つ→GASから再取得してローカルを正規化
+async function saveAndResync(eventId,date){
   const currentMembers=getShiftsForDate(eventId,date);
-  fetch(GAS_URL,{
-    method:'POST',
-    headers:{'Content-Type':'text/plain'},
-    body:JSON.stringify({action:'shift_set',eventId,date,members:currentMembers,user:USER_NAME})
-  }).then(r=>r.json()).then(d=>{
-    pendingSaves--;
+  pendingSaves++;
+  try{
+    const r=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'shift_set',eventId,date,members:currentMembers,user:USER_NAME})});
+    const d=await r.json();
     if(!d.success)console.error('shift save failed:',d.error);
-  }).catch(e=>{pendingSaves--;console.error('shift save error:',e);});
+  }catch(e){console.error('shift save error:',e);}
+  pendingSaves--;
+  lastSaveTime=Date.now();
+  // 保存完了後にGASから最新データを取得してローカルを同期
+  try{
+    const r2=await fetch(GAS_URL);const d2=await r2.json();
+    if(d2.success&&d2.shifts){
+      shifts=d2.shifts.map(sh=>({eventId:String(sh.eventId),date:normDate(sh.date),memberName:String(sh.memberName)}));
+      updateShiftUI();
+    }
+  }catch(e){console.error('resync error:',e);}
 }
 
 function closePicker(){const p=document.getElementById('activePicker');if(p)p.remove();pickerTarget=null;}
