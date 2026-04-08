@@ -148,9 +148,10 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
 .shift-expand-inner{border:1px solid var(--border-light);border-top:none;border-radius:0 0 6px 6px;background:var(--surface-alt);margin:0 1px;}
 .shift-expand-row{display:grid;min-height:20px;border-bottom:1px solid var(--border-light);font-size:9px;}
 .shift-expand-row:last-child{border-bottom:none;}
-.shift-expand-cell{padding:1px 2px;text-align:center;border-right:1px solid var(--border-light);overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;}
+.shift-expand-cell{padding:2px 1px;text-align:center;border-right:1px solid var(--border-light);overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:1px;}
 .shift-expand-cell:last-child{border-right:none;}
-.shift-name-tag{font-size:8px;line-height:1.2;padding:1px 3px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+.shift-name-tag{font-size:9px;line-height:1.3;padding:1px 4px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;font-weight:600;color:#fff;}
+.shift-name-tag span{color:#fff;}
 
 /* ===== Inline Edit Popup ===== */
 .inline-popup{position:fixed;z-index:150;background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);border:1px solid var(--border);width:320px;max-width:90vw;opacity:0;pointer-events:none;transition:opacity 0.15s,transform 0.15s;transform:translateY(4px);}
@@ -254,7 +255,7 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
 .shift-date-label .dow.sun{color:#c44;}
 .shift-date-label .dow.sat{color:#47a;}
 .shift-members{flex:1;display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:30px;}
-.shift-tag{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:500;cursor:default;transition:opacity 0.1s;}
+.shift-tag{display:inline-flex;align-items:center;gap:3px;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;cursor:default;transition:opacity 0.1s;}
 .shift-tag .remove-tag{cursor:pointer;opacity:0.6;font-size:13px;line-height:1;margin-left:2px;}
 .shift-tag .remove-tag:hover{opacity:1;}
 .shift-add-member{display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border:1px dashed var(--border);border-radius:12px;font-size:11px;color:var(--text-muted);cursor:pointer;background:transparent;font-family:inherit;transition:all 0.15s;}
@@ -625,7 +626,7 @@ function renderCalendar(){
             maxMem=Math.max(maxMem,getShiftsForDate(ev.id,dateStr).length);
           }
           if(maxMem===0)maxMem=1;
-          const rowH=Math.max(18,maxMem*14+4);
+          const rowH=Math.max(22,maxMem*16+6);
           html+=`<div class="shift-expand open" data-expand="${ev.id}-${m}" style="grid-column:1/-1">`;
           html+=`<div class="shift-expand-inner"><div class="shift-expand-row" style="grid-template-columns:${gridCols};min-height:${rowH}px">`;
           for(let d=1;d<=dim;d++){
@@ -635,11 +636,11 @@ function renderCalendar(){
               html+='<div class="shift-expand-cell">';
               for(const nm of dayMembers){
                 const col=getMemberColor(nm);
-                html+=`<span class="shift-name-tag" style="color:${col}">${esc(nm)}</span>`;
+                html+=`<span class="shift-name-tag" style="background:${col};color:#fff">${esc(nm)}</span>`;
               }
               html+='</div>';
             }else{
-              html+='<div class="shift-expand-cell"></div>';
+              html+='<div class="shift-expand-cell" style="background:transparent"></div>';
             }
           }
           html+='</div></div></div>';
@@ -884,7 +885,8 @@ function renderShiftBody(ev){
     html+=`<div class="shift-members" data-eid="${ev.id}" data-date="${dateStr}">`;
     for(const name of dayShifts){
       const col=getMemberColor(name);
-      html+=`<span class="shift-tag" style="background:${col}25;color:${col}">${esc(name)}<span class="remove-tag" onclick="removeShiftMember('${ev.id}','${dateStr}','${esc(name)}')">&times;</span></span>`;
+      const safeName=name.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      html+=`<span class="shift-tag" style="background:${col}30;color:${col};border:1px solid ${col}50">${esc(name)}<span class="remove-tag" onclick="removeShiftMember('${ev.id}','${dateStr}','${safeName}')">&times;</span></span>`;
     }
     html+=`<button class="shift-add-member" onclick="openPicker(this,'${ev.id}','${dateStr}')">+ 追加</button>`;
     html+=`</div></div>`;
@@ -950,10 +952,9 @@ async function pickMember(eventId,date,name){
   closePicker();
   const current=getShiftsForDate(eventId,date);
   current.push(name);
-  // Update local state immediately for responsiveness
   shifts.push({eventId,date,memberName:name});
   renderShiftBody(events.find(e=>e.id===eventId));
-  // Persist
+  renderCalendar();
   await apiPostSilent({action:'shift_set',eventId,date,members:current});
 }
 
@@ -974,6 +975,7 @@ async function removeShiftMember(eventId,date,name){
   const current=getShiftsForDate(eventId,date).filter(n=>n!==name);
   shifts=shifts.filter(s=>!(s.eventId===eventId&&s.date===date&&s.memberName===name));
   renderShiftBody(events.find(e=>e.id===eventId));
+  renderCalendar();
   await apiPostSilent({action:'shift_set',eventId,date,members:current});
 }
 
