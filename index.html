@@ -537,7 +537,18 @@ async function fetchEvents(){
   try{const r=await fetch(GAS_URL);const d=await r.json();
     if(d.success){
       if(d.events)events=d.events.map(ev=>({id:String(ev.id),name:String(ev.name),start:normDate(ev.start),end:normDate(ev.end),category:String(ev.category||'other'),note:String(ev.note||'')}));
-      if(d.shifts)shifts=d.shifts.map(sh=>({eventId:String(sh.eventId),date:normDate(sh.date),memberName:String(sh.memberName)}));
+      if(d.shifts){
+        // 重複除去（同じeventId+date+memberNameの組み合わせは1つだけ残す）
+        const seen=new Set();
+        shifts=[];
+        for(const sh of d.shifts){
+          const key=String(sh.eventId)+'|'+normDate(sh.date)+'|'+String(sh.memberName);
+          if(!seen.has(key)){
+            seen.add(key);
+            shifts.push({eventId:String(sh.eventId),date:normDate(sh.date),memberName:String(sh.memberName)});
+          }
+        }
+      }
       if(d.members)members=d.members.map(m=>({name:String(m.name),color:String(m.color||'')}));
       render();
       // シフトモーダルが開いていたら再描画
@@ -1027,31 +1038,46 @@ function updateShiftUI(){
   renderCalendar();
 }
 
-// バックグラウンド保存（結果を待たない、UIをブロックしない）
-let saveQueue=new Map(); // eventId+date → debounceタイマー
+// バックグラウンド保存（シリアライズ：同じeventId+dateの保存は順番に実行）
+let saveTimers=new Map();
+let savePromises=new Map();
+
 function bgSave(eventId,date){
   const key=eventId+'|'+date;
-  // 100msデバウンス（連続操作をまとめる）
-  if(saveQueue.has(key))clearTimeout(saveQueue.get(key));
-  saveQueue.set(key,setTimeout(()=>{
-    saveQueue.delete(key);
-    const mems=getShiftsForDate(eventId,date);
-    pendingSaves++;
+  // デバウンス500ms（連続操作をまとめる）
+  if(saveTimers.has(key))clearTimeout(saveTimers.get(key));
+  saveTimers.set(key,setTimeout(()=>{
+    saveTimers.delete(key);
+    executeSave(eventId,date);
+  },500));
+}
+
+async function executeSave(eventId,date){
+  const key=eventId+'|'+date;
+  // 前の保存が完了するまで待つ
+  if(savePromises.has(key)){
+    try{await savePromises.get(key);}catch(e){}
+  }
+  // 送信時点のローカルデータを取得（最新の状態）
+  const mems=getShiftsForDate(eventId,date);
+  pendingSaves++;
+  lastSaveTime=Date.now();
+  const p=fetch(GAS_URL,{
+    method:'POST',
+    headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify({action:'shift_set',eventId,date,members:mems,user:USER_NAME})
+  }).then(r=>r.json()).then(d=>{
+    pendingSaves--;
     lastSaveTime=Date.now();
-    fetch(GAS_URL,{
-      method:'POST',
-      headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify({action:'shift_set',eventId,date,members:mems,user:USER_NAME})
-    }).then(r=>r.json()).then(d=>{
-      pendingSaves--;
-      lastSaveTime=Date.now();
-      if(!d.success)showToast('保存失敗',true);
-    }).catch(e=>{
-      pendingSaves--;
-      lastSaveTime=Date.now();
-      console.error('bgSave error:',e);
-    });
-  },100));
+    savePromises.delete(key);
+    if(!d.success)showToast('保存失敗',true);
+  }).catch(e=>{
+    pendingSaves--;
+    lastSaveTime=Date.now();
+    savePromises.delete(key);
+    console.error('bgSave error:',e);
+  });
+  savePromises.set(key,p);
 }
 
 function bgPost(body){
