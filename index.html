@@ -210,10 +210,17 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
   .day-header{font-size:10px;}
   .event-bar{font-size:10px;height:22px;top:4px;}
   .event-row{height:28px;}
-  .inline-popup{width:290px;}
+  /* Mobile: inline popup becomes full modal */
+  .popup-backdrop{background:rgba(44,40,32,0.4) !important;}
+  .inline-popup{width:92vw;max-width:400px;top:50% !important;left:50% !important;transform:translate(-50%,-50%) !important;border-radius:var(--radius-lg);max-height:85vh;overflow-y:auto;}
+  .inline-popup.active{transform:translate(-50%,-50%) !important;}
+  .inline-popup-body input{font-size:16px;padding:10px 12px;}
+  .inline-popup-footer{flex-wrap:wrap;gap:8px;}
+  .inline-cat-btn{width:28px;height:28px;}
 }
 @media(max-width:380px){
   .header h1{font-size:13px;}
+  .header-actions .btn-sm{padding:6px 8px;font-size:11px;}
 }
 
 /* ===== Shift UI ===== */
@@ -591,15 +598,18 @@ function openBarEdit(id,evt){
   document.getElementById('inlineCatRow').innerHTML=catHtml;
   // Position popup
   const bd=document.getElementById('popupBackdrop');bd.style.display='block';
-  if(evt&&evt.target){
+  if(isMobile()){
+    // Mobile: center on screen (CSS handles positioning)
+    popup.style.top='';popup.style.left='';popup.style.transform='';
+  }else if(evt&&evt.target){
     const rect=evt.target.getBoundingClientRect();
     let top=rect.bottom+6,left=rect.left;
-    const pw=320,ph=340;
+    const pw=320,ph=380;
     if(left+pw>window.innerWidth)left=window.innerWidth-pw-10;
     if(left<10)left=10;
     if(top+ph>window.innerHeight)top=rect.top-ph-6;
     if(top<10)top=10;
-    popup.style.top=top+'px';popup.style.left=left+'px';
+    popup.style.top=top+'px';popup.style.left=left+'px';popup.style.transform='';
   }else{
     popup.style.top='50%';popup.style.left='50%';popup.style.transform='translate(-50%,-50%)';
   }
