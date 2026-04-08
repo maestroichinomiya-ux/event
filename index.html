@@ -490,7 +490,10 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
     <div class="shift-modal-body" id="shiftBody"></div>
     <div class="shift-modal-footer">
       <span style="font-size:11px;color:var(--text-muted)" id="shiftStatus"></span>
-      <button class="btn btn-secondary btn-sm" onclick="closeShiftModal()">閉じる</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-secondary btn-sm" onclick="syncShifts()">同期</button>
+        <button class="btn btn-secondary btn-sm" onclick="closeShiftModal()">閉じる</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1085,6 +1088,34 @@ function bgPost(body){
 }
 
 function closePicker(){const p=document.getElementById('activePicker');if(p)p.remove();pickerTarget=null;}
+
+// シフト同期ボタン
+async function syncShifts(){
+  document.getElementById('shiftStatus').textContent='同期中...';
+  // 保留中の保存を完了させる
+  const promises=Array.from(savePromises.values());
+  if(promises.length>0)await Promise.all(promises);
+  // GASから最新データを取得
+  lastSaveTime=0;pendingSaves=0;
+  try{
+    const r=await fetch(GAS_URL);const d=await r.json();
+    if(d.success){
+      if(d.shifts){
+        const seen=new Set();shifts=[];
+        for(const sh of d.shifts){
+          const key=String(sh.eventId)+'|'+normDate(sh.date)+'|'+String(sh.memberName);
+          if(!seen.has(key)){seen.add(key);shifts.push({eventId:String(sh.eventId),date:normDate(sh.date),memberName:String(sh.memberName)});}
+        }
+      }
+      if(d.members)members=d.members.map(m=>({name:String(m.name),color:String(m.color||'')}));
+      if(d.events)events=d.events.map(ev=>({id:String(ev.id),name:String(ev.name),start:normDate(ev.start),end:normDate(ev.end),category:String(ev.category||'other'),note:String(ev.note||'')}));
+      render();
+      if(shiftEventId){const sev=events.find(e=>e.id===shiftEventId);if(sev){renderMemberManage();renderShiftBody(sev);}}
+      document.getElementById('shiftStatus').textContent='同期完了';
+      showToast('同期しました');
+    }
+  }catch(e){document.getElementById('shiftStatus').textContent='同期失敗';showToast('同期失敗',true);}
+}
 
 // Silent API post (for non-shift operations)
 async function apiPostSilent(body){
