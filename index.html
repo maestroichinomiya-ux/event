@@ -97,8 +97,8 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
 .event-item:hover{background:var(--surface-alt);}
 .event-color-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
 .event-item-info{flex:1;min-width:0;}
-.event-item-name{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.event-item-date{font-size:11px;color:var(--text-muted);}
+.event-item-name{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.event-item-date{font-size:12px;color:var(--text-muted);}
 .event-item-actions{display:flex;gap:4px;opacity:0;transition:opacity 0.15s;}
 .event-item:hover .event-item-actions{opacity:1;}
 .icon-btn{width:28px;height:28px;border:none;background:transparent;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:14px;transition:all 0.1s;}
@@ -116,29 +116,29 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
 /* ===== Calendar ===== */
 .calendar-area{flex:1;overflow:auto;padding:16px;-webkit-overflow-scrolling:touch;}
 .month-block{margin-bottom:20px;background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);border:1px solid var(--border-light);overflow:hidden;}
-.month-header{padding:8px 16px;background:var(--surface-alt);border-bottom:1px solid var(--border-light);font-family:'Zen Maru Gothic',serif;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:space-between;}
+.month-header{padding:10px 16px;background:var(--surface-alt);border-bottom:1px solid var(--border-light);font-family:'Zen Maru Gothic',serif;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:space-between;}
 .month-add-btn{width:26px;height:26px;border:1px solid var(--border);background:var(--surface);border-radius:4px;cursor:pointer;font-size:16px;color:var(--accent);display:flex;align-items:center;justify-content:center;transition:all 0.15s;}
 .month-add-btn:hover{background:var(--accent-light);border-color:var(--accent);}
 .calendar-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 .day-header-row{display:grid;border-bottom:1px solid var(--border-light);}
-.day-header{text-align:center;padding:4px 0;font-size:11px;font-weight:500;color:var(--text-muted);border-right:1px solid var(--border-light);}
+.day-header{text-align:center;padding:5px 0;font-size:13px;font-weight:500;color:var(--text-muted);border-right:1px solid var(--border-light);}
 .day-header:last-child{border-right:none;}
 .day-header.sun{color:#c44;}
 .day-header.sat{color:#47a;}
-.event-rows{position:relative;min-height:32px;}
+.event-rows{position:relative;min-height:34px;}
 .event-rows-flow{position:relative;}
-.event-row{display:grid;height:30px;}
+.event-row{display:grid;height:34px;}
 .event-cell{border-right:1px solid var(--border-light);border-bottom:1px solid var(--border-light);}
 .event-cell:last-child{border-right:none;}
 /* Bars use grid placement inside a grid overlay */
-.event-bar-row{display:grid;height:30px;position:relative;z-index:2;}
+.event-bar-row{display:grid;height:34px;position:relative;z-index:2;}
 .event-bar-slot{position:relative;}
-.event-bar{position:absolute;height:24px;top:3px;left:1px;right:1px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px;z-index:2;text-shadow:0 1px 2px rgba(0,0,0,0.2);transition:box-shadow 0.15s;-webkit-tap-highlight-color:transparent;user-select:none;}
+.event-bar{position:absolute;height:28px;top:3px;left:1px;right:1px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#fff;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;z-index:2;text-shadow:0 1px 2px rgba(0,0,0,0.2);transition:box-shadow 0.15s;-webkit-tap-highlight-color:transparent;user-select:none;}
 .event-bar:hover,.event-bar:active{box-shadow:0 2px 8px rgba(0,0,0,0.25);}
 .event-bar:active{transform:scale(0.97);}
 /* Shift fill indicator on bar */
-.bar-fill{display:inline-flex;align-items:center;gap:2px;margin-left:auto;padding-left:4px;flex-shrink:0;font-size:9px;opacity:0.9;}
-.bar-fill-dot{width:7px;height:7px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.7);}
+.bar-fill{display:inline-flex;align-items:center;gap:2px;margin-left:auto;padding-left:4px;flex-shrink:0;font-size:10px;opacity:0.9;}
+.bar-fill-dot{width:8px;height:8px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.7);}
 .bar-fill-dot.full{background:rgba(255,255,255,0.9);}
 .bar-fill-dot.partial{background:rgba(255,255,255,0.4);}
 .bar-fill-dot.empty{background:transparent;}
@@ -146,12 +146,11 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
 .shift-expand{overflow:hidden;transition:max-height 0.25s ease;max-height:0;}
 .shift-expand.open{max-height:500px;}
 .shift-expand-inner{border:1px solid var(--border-light);border-top:none;border-radius:0 0 6px 6px;background:var(--surface-alt);margin:0 1px;}
-.shift-expand-row{display:grid;min-height:20px;border-bottom:1px solid var(--border-light);font-size:9px;}
+.shift-expand-row{display:grid;min-height:22px;border-bottom:1px solid var(--border-light);font-size:11px;}
 .shift-expand-row:last-child{border-bottom:none;}
 .shift-expand-cell{padding:2px 1px;text-align:center;border-right:1px solid var(--border-light);overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:1px;}
 .shift-expand-cell:last-child{border-right:none;}
-.shift-name-tag{font-size:9px;line-height:1.3;padding:1px 4px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;font-weight:600;color:#fff;}
-.shift-name-tag span{color:#fff;}
+.shift-name-tag{font-size:11px;line-height:1.4;padding:0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;font-weight:500;color:var(--text);}
 
 /* ===== Inline Edit Popup ===== */
 .inline-popup{position:fixed;z-index:150;background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);border:1px solid var(--border);width:320px;max-width:90vw;opacity:0;pointer-events:none;transition:opacity 0.15s,transform 0.15s;transform:translateY(4px);}
@@ -224,9 +223,11 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
   .event-item-actions{opacity:1;}
   .user-badge{display:none;}
   .sync-status span:not(.sync-dot){display:none;}
-  .day-header{font-size:10px;}
-  .event-bar{font-size:10px;height:22px;top:4px;}
-  .event-row{height:28px;}
+  .day-header{font-size:11px;}
+  .event-bar{font-size:11px;height:26px;top:4px;}
+  .event-row{height:32px;}
+  .event-bar-row{height:32px;}
+  .shift-name-tag{font-size:10px;}
   /* Mobile: inline popup becomes full modal */
   .popup-backdrop{background:rgba(44,40,32,0.4) !important;}
   .inline-popup{width:92vw;max-width:400px;top:50% !important;left:50% !important;transform:translate(-50%,-50%) !important;border-radius:var(--radius-lg);max-height:85vh;overflow-y:auto;}
@@ -584,7 +585,7 @@ function renderCalendar(){
       for(let d=1;d<=dim;d++) html+='<div class="event-cell"></div>';
       html+='</div>';
       // Bar overlay for this row
-      html+=`<div class="event-bar-row" style="grid-template-columns:${gridCols};margin-top:-30px">`;
+      html+=`<div class="event-bar-row" style="grid-template-columns:${gridCols};margin-top:-34px">`;
       for(const item of rowItems){
         const ev=item.event,c=CAT_COLORS[ev.category]||CAT_COLORS.other;
         const evShifts=getShiftsForEvent(ev.id);
@@ -626,7 +627,7 @@ function renderCalendar(){
             maxMem=Math.max(maxMem,getShiftsForDate(ev.id,dateStr).length);
           }
           if(maxMem===0)maxMem=1;
-          const rowH=Math.max(22,maxMem*16+6);
+          const rowH=Math.max(24,maxMem*18+6);
           html+=`<div class="shift-expand open" data-expand="${ev.id}-${m}" style="grid-column:1/-1">`;
           html+=`<div class="shift-expand-inner"><div class="shift-expand-row" style="grid-template-columns:${gridCols};min-height:${rowH}px">`;
           for(let d=1;d<=dim;d++){
@@ -636,7 +637,7 @@ function renderCalendar(){
               html+='<div class="shift-expand-cell">';
               for(const nm of dayMembers){
                 const col=getMemberColor(nm);
-                html+=`<span class="shift-name-tag" style="background:${col};color:#fff">${esc(nm)}</span>`;
+                html+=`<span class="shift-name-tag">${esc(nm)}</span>`;
               }
               html+='</div>';
             }else{
