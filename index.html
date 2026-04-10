@@ -484,7 +484,7 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
       <button class="icon-btn" onclick="closeShiftModal()" style="font-size:18px">&times;</button>
     </div>
     <div class="member-manage-section">
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;font-weight:500">登録メンバー</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;font-weight:500">この催事の担当メンバー</div>
       <div class="member-manage-row" id="memberManageRow"></div>
     </div>
     <div class="shift-modal-body" id="shiftBody"></div>
@@ -881,10 +881,15 @@ let pickerTarget=null;
 
 function getShiftsForEvent(eventId){return shifts.filter(s=>s.eventId===eventId);}
 function getShiftsForDate(eventId,date){return shifts.filter(s=>s.eventId===eventId&&s.date===date).map(s=>s.memberName);}
+// その催事に登録済みのユニークなメンバー名一覧を返す
+function getEventMembers(eventId){
+  const names=new Set();
+  shifts.filter(s=>s.eventId===eventId).forEach(s=>names.add(s.memberName));
+  return Array.from(names);
+}
 function getMemberColor(name){
   const m=members.find(mm=>mm.name===name);
   if(m&&m.color)return m.color;
-  // Auto-assign color based on name hash
   let h=0;for(let i=0;i<name.length;i++)h=name.charCodeAt(i)+((h<<5)-h);
   return MEMBER_COLORS[Math.abs(h)%MEMBER_COLORS.length];
 }
@@ -902,28 +907,16 @@ function closeShiftModal(){document.getElementById('shiftOverlay').classList.rem
 
 function renderMemberManage(){
   const row=document.getElementById('memberManageRow');
-  let html=members.map(m=>{
-    const col=m.color||getMemberColor(m.name);
-    return `<span class="member-chip" style="background:${col}20;border-color:${col}60"><span style="color:${col}">${esc(m.name)}</span><span class="remove-mem" onclick="removeMember('${esc(m.name)}')">&times;</span></span>`;
+  if(!shiftEventId){row.innerHTML='';return;}
+  // この催事に登録されているメンバーだけ表示
+  const eventMems=getEventMembers(shiftEventId);
+  let html=eventMems.map(name=>{
+    const col=getMemberColor(name);
+    const sn=name.replace(/'/g,"\\'");
+    return `<span class="member-chip" style="background:${col}20;border-color:${col}60"><span style="color:${col}">${esc(name)}</span></span>`;
   }).join('');
-  html+=`<span class="member-add-inline"><input type="text" id="newMemberInput" placeholder="名前" onkeydown="if(event.key==='Enter')addNewMember()"><button class="btn btn-sm btn-secondary" onclick="addNewMember()" style="padding:3px 8px;font-size:10px">追加</button></span>`;
+  if(eventMems.length===0)html='<span style="font-size:11px;color:var(--text-light)">まだ登録なし</span>';
   row.innerHTML=html;
-}
-
-async function addNewMember(){
-  const inp=document.getElementById('newMemberInput');
-  const name=inp.value.trim();if(!name)return;
-  const color=MEMBER_COLORS[members.length%MEMBER_COLORS.length];
-  const ok=await apiPostSilent({action:'member_add',name,color});
-  if(ok){members.push({name,color});renderMemberManage();renderShiftBody(events.find(e=>e.id===shiftEventId));}
-  inp.value='';
-}
-
-async function removeMember(name){
-  if(!confirm(`「${name}」をメンバーから削除しますか？`))return;
-  await apiPostSilent({action:'member_remove',name});
-  members=members.filter(m=>m.name!==name);
-  renderMemberManage();renderShiftBody(events.find(e=>e.id===shiftEventId));
 }
 
 function renderShiftBody(ev){
@@ -969,69 +962,80 @@ function openPicker(btn,eventId,date){
   if(rect.bottom+220>window.innerHeight){picker.style.top='';picker.style.bottom=(window.innerHeight-rect.top+2)+'px';}
 
   const currentMembers=getShiftsForDate(eventId,date);
-  // Search input
-  let html=`<input class="shift-member-picker-input" id="pickerSearch" placeholder="検索/新規入力" oninput="filterPicker()">`;
-  // Registered members
-  const available=members.filter(m=>!currentMembers.includes(m.name));
+  // この催事で過去に登録されたメンバー（今日の分を除く、他日で使われた人）
+  const eventMems=getEventMembers(eventId).filter(n=>!currentMembers.includes(n));
+  let html=`<input class="shift-member-picker-input" id="pickerSearch" placeholder="名前を入力" oninput="filterPicker()">`;
   html+='<div id="pickerList">';
-  for(const m of available){
-    const col=m.color||getMemberColor(m.name);
-    const sn=m.name.replace(/'/g,"\\'");
-    html+=`<div class="shift-member-picker-item" onclick="pickMember('${eventId}','${date}','${sn}')"><span class="mem-dot" style="background:${col}"></span>${esc(m.name)}</div>`;
+  for(const name of eventMems){
+    const col=getMemberColor(name);
+    const sn=name.replace(/'/g,"\\'");
+    html+=`<div class="shift-member-picker-item" onclick="pickMember('${eventId}','${date}','${sn}')"><span class="mem-dot" style="background:${col}"></span>${esc(name)}</div>`;
   }
+  if(eventMems.length===0)html+='<div style="padding:8px 12px;font-size:11px;color:var(--text-light)">名前を入力してEnterで追加</div>';
   html+='</div>';
   picker.innerHTML=html;
   document.body.appendChild(picker);
   pickerTarget={eventId,date};
-  setTimeout(()=>document.getElementById('pickerSearch').focus(),50);
+  setTimeout(()=>{const el=document.getElementById('pickerSearch');if(el)el.focus();},50);
 
-  // Close on outside click
   const handler=e=>{if(!picker.contains(e.target)&&e.target!==btn){closePicker();document.removeEventListener('mousedown',handler);}};
   setTimeout(()=>document.addEventListener('mousedown',handler),10);
 }
 
 function filterPicker(){
-  const q=document.getElementById('pickerSearch').value.trim().toLowerCase();
+  const inp=document.getElementById('pickerSearch');
+  const q=inp?inp.value.trim():'';
+  const ql=q.toLowerCase();
   const list=document.getElementById('pickerList');if(!list||!pickerTarget)return;
   const currentMembers=getShiftsForDate(pickerTarget.eventId,pickerTarget.date);
-  const available=members.filter(m=>!currentMembers.includes(m.name)&&m.name.toLowerCase().includes(q));
+  // この催事のメンバーから絞り込み
+  const eventMems=getEventMembers(pickerTarget.eventId).filter(n=>!currentMembers.includes(n)&&n.toLowerCase().includes(ql));
   let html='';
-  for(const m of available){
-    const col=m.color||getMemberColor(m.name);
-    const sn=m.name.replace(/'/g,"\\'");
-    html+=`<div class="shift-member-picker-item" onclick="pickMember('${pickerTarget.eventId}','${pickerTarget.date}','${sn}')"><span class="mem-dot" style="background:${col}"></span>${esc(m.name)}</div>`;
+  for(const name of eventMems){
+    const col=getMemberColor(name);
+    const sn=name.replace(/'/g,"\\'");
+    html+=`<div class="shift-member-picker-item" onclick="pickMember('${pickerTarget.eventId}','${pickerTarget.date}','${sn}')"><span class="mem-dot" style="background:${col}"></span>${esc(name)}</div>`;
   }
-  // If no match and has input, allow adding as temp member
-  if(q&&!members.find(m=>m.name.toLowerCase()===q)){
-    html+=`<div class="shift-member-picker-item" onclick="pickNewMember('${pickerTarget.eventId}','${pickerTarget.date}')" style="color:var(--accent);font-weight:500">+ 「${esc(document.getElementById('pickerSearch').value.trim())}」を追加</div>`;
+  // 入力値がリストにない場合、新規追加ボタンを表示
+  if(q&&!getEventMembers(pickerTarget.eventId).find(n=>n.toLowerCase()===ql)||q&&currentMembers.includes(q)){
+    // 既にこの日に入っている場合は追加しない
+    if(!currentMembers.includes(q)){
+      html+=`<div class="shift-member-picker-item" onclick="pickMember('${pickerTarget.eventId}','${pickerTarget.date}','${q.replace(/'/g,"\\'")}')" style="color:var(--accent);font-weight:500">+ 「${esc(q)}」を追加</div>`;
+    }
+  }
+  // Enterキーで直接追加
+  if(!inp._keybound){
+    inp._keybound=true;
+    inp.addEventListener('keydown',e=>{
+      if(e.key==='Enter'&&q){
+        e.preventDefault();
+        if(!currentMembers.includes(q)){
+          pickMember(pickerTarget.eventId,pickerTarget.date,q);
+        }
+      }
+    });
   }
   list.innerHTML=html;
 }
 
-async function pickMember(eventId,date,name){
+function pickMember(eventId,date,name){
   closePicker();
   if(getShiftsForDate(eventId,date).includes(name))return;
   shifts.push({eventId,date,memberName:name});
+  // membersリストにまだない場合は追加（色の自動割当）
+  if(!members.find(m=>m.name===name)){
+    const color=MEMBER_COLORS[members.length%MEMBER_COLORS.length];
+    members.push({name,color});
+    bgPost({action:'member_add',name,color});
+  }
+  renderMemberManage();
   updateShiftUI();
   bgSave(eventId,date);
 }
 
-async function pickNewMember(eventId,date){
-  const inp=document.getElementById('pickerSearch');
-  const name=inp?inp.value.trim():'';
-  if(!name)return;
-  closePicker();
-  if(!members.find(m=>m.name===name)){
-    const color=MEMBER_COLORS[members.length%MEMBER_COLORS.length];
-    members.push({name,color});
-    renderMemberManage();
-    bgPost({action:'member_add',name,color});
-  }
-  pickMember(eventId,date,name);
-}
-
 function removeShiftMember(eventId,date,name){
   shifts=shifts.filter(s=>!(s.eventId===eventId&&s.date===date&&s.memberName===name));
+  renderMemberManage();
   updateShiftUI();
   bgSave(eventId,date);
 }
