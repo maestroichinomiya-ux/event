@@ -305,11 +305,20 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
   .month-add-btn{display:none !important;}
   .day-header{font-size:8px;padding:2px 0;min-width:0;}
   .day-header span{font-size:6px !important;}
-  .event-rows{min-height:18px;}
   .event-row{height:18px;}
   .event-bar-row{height:18px;}
   .event-bar{height:14px;top:2px;font-size:7px;padding:0 2px;border-radius:2px;left:0;right:0;}
+  .bar-fill{display:none !important;}
   .event-cell{border-color:#ddd;}
+  /* シフト行の印刷スタイル */
+  .shift-expand-inner{border-color:#ccc;}
+  .shift-expand-row{min-height:14px !important;}
+  .shift-expand-cell{padding:0 1px;border-color:#ddd;}
+  .shift-name-tag{font-size:6px;line-height:1.2;padding:0 1px;}
+}
+/* シフトなし印刷時はシフト行を非表示 */
+@media print{
+  body:not(.print-with-shifts) .shift-row-expand{display:none !important;}
 }
 </style>
 </head>
@@ -348,7 +357,8 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
     <span class="user-badge" id="userBadge"></span>
     <button class="btn btn-secondary btn-sm" onclick="manualSync()">再読込</button>
     <button class="btn btn-primary btn-sm" onclick="exportExcel()">Excel</button>
-    <button class="btn btn-secondary btn-sm" onclick="window.print()">印刷</button>
+    <button class="btn btn-secondary btn-sm" onclick="printNoShift()">印刷</button>
+    <button class="btn btn-secondary btn-sm" onclick="printWithShift()">印刷(シフト)</button>
     <button class="btn btn-secondary btn-sm" onclick="showSettings()">設定</button>
   </div>
 </div>
@@ -501,7 +511,7 @@ body{font-family:'Zen Kaku Gothic New',sans-serif;background:var(--bg);color:var
 <script>
 // ===== State =====
 let GAS_URL='',USER_NAME='',events=[],shifts=[],members=[],currentYear=new Date().getFullYear(),editingId=null,selectedCategory='tokai',filterCategory='all',syncInterval=null,isSyncing=false,inlineEditId=null,inlineEditCat='tokai';
-const expandedEvents=new Set();
+const expandedRows=new Set();
 let pendingSaves=0;
 let lastSaveTime=0;
 const CAT_COLORS={tokai:{bg:'#4a7ab5',light:'#dce8f4',label:'東海'},kanto:{bg:'#5a9e6f',light:'#ddf0e3',label:'関東'},kansai:{bg:'#c47d2e',light:'#f5e8d4',label:'関西'},other:{bg:'#888888',light:'#e8e8e8',label:'その他'},special:{bg:'#9b59b6',light:'#ede0f4',label:'特別'}};
@@ -604,17 +614,16 @@ function renderCalendar(){
     // Event rows
     for(let r=0;r<maxR;r++){
       const rowItems=rows.filter(i=>i.row===r);
-      // Bar row: grid背景セル + 上にバーを重ねる
+      const rowKey='row-'+m+'-'+r;
+      const isRowOpen=expandedRows.has(rowKey);
+      // Bar row
       html+=`<div style="position:relative">`;
-      // 背景グリッド（罫線用）
       html+=`<div class="event-row" style="grid-template-columns:${gridCols}">`;
       for(let d=1;d<=dim;d++) html+='<div class="event-cell"></div>';
       html+='</div>';
-      // バー（背景の上に絶対配置）
       html+=`<div class="event-bar-row" style="grid-template-columns:${gridCols}">`;
       for(const item of rowItems){
         const ev=item.event,c=CAT_COLORS[ev.category]||CAT_COLORS.other;
-        const evShifts=getShiftsForEvent(ev.id);
         const totalDays=item.endDay-item.startDay+1;
         let filledDays=0;
         for(let d=item.startDay;d<=item.endDay;d++){
@@ -632,41 +641,46 @@ function renderCalendar(){
         }else if(filledDays>0){
           fillHtml=`<span class="bar-fill">${filledDays}/${totalDays}</span>`;
         }
-        const isOpen=expandedEvents.has(ev.id+'-'+m);
-        html+=`<div class="event-bar-slot" style="grid-column:${item.startDay}/${item.endDay+1}"><div class="event-bar" data-eid="${ev.id}" data-month="${m}" style="background:${c.bg}${isOpen?';border-radius:4px 4px 0 0':''}" onclick="if(!isMobile())toggleShiftExpand('${ev.id}',${m},event)" oncontextmenu="event.preventDefault();openBarEdit('${ev.id}',event)">${esc(ev.name)}${fillHtml}</div></div>`;
+        html+=`<div class="event-bar-slot" style="grid-column:${item.startDay}/${item.endDay+1}"><div class="event-bar" data-eid="${ev.id}" data-month="${m}" data-rowkey="${rowKey}" style="background:${c.bg}${isRowOpen?';border-radius:4px 4px 0 0':''}" onclick="if(!isMobile())toggleRowExpand('${rowKey}')" oncontextmenu="event.preventDefault();openBarEdit('${ev.id}',event)">${esc(ev.name)}${fillHtml}</div></div>`;
       }
-      html+='</div>';
-      html+='</div>'; // position:relative wrapper end
+      html+='</div></div>';
 
-      // シフト展開行（バーの直下に同じgridで配置）
-      for(const item of rowItems){
-        const ev=item.event;
-        const isOpen=expandedEvents.has(ev.id+'-'+m);
-        if(!isOpen)continue;
-        const evShifts=getShiftsForEvent(ev.id);
-        if(evShifts.length>0){
-          let maxMem=0;
-          for(let d=item.startDay;d<=item.endDay;d++){
-            const ds=`${currentYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            maxMem=Math.max(maxMem,getShiftsForDate(ev.id,ds).length);
-          }
-          if(maxMem===0)maxMem=1;
-          const rowH=Math.max(24,maxMem*18+6);
-          html+=`<div class="shift-expand-inner"><div class="shift-expand-row" style="grid-template-columns:${gridCols};min-height:${rowH}px">`;
-          for(let d=1;d<=dim;d++){
+      // シフト展開行（この行の全催事をまとめて1つのシフト行に表示）
+      if(isRowOpen){
+        // 各日のメンバーを全催事から集める
+        let maxMem=0;
+        for(let d=1;d<=dim;d++){
+          let dayTotal=0;
+          for(const item of rowItems){
             if(d>=item.startDay&&d<=item.endDay){
               const ds=`${currentYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-              const dayMem=getShiftsForDate(ev.id,ds);
-              html+='<div class="shift-expand-cell">';
-              for(const nm of dayMem) html+=`<span class="shift-name-tag">${esc(nm)}</span>`;
-              html+='</div>';
-            }else{
-              html+='<div class="shift-expand-cell" style="opacity:0.3"></div>';
+              dayTotal+=getShiftsForDate(item.event.id,ds).length;
             }
+          }
+          maxMem=Math.max(maxMem,dayTotal);
+        }
+        const hasAnyShift=rowItems.some(item=>getShiftsForEvent(item.event.id).length>0);
+        if(hasAnyShift){
+          if(maxMem===0)maxMem=1;
+          const rowH=Math.max(24,maxMem*18+6);
+          html+=`<div class="shift-expand-inner shift-row-expand"><div class="shift-expand-row" style="grid-template-columns:${gridCols};min-height:${rowH}px">`;
+          for(let d=1;d<=dim;d++){
+            // この日にどの催事のシフトがあるか
+            let dayMembers=[];
+            for(const item of rowItems){
+              if(d>=item.startDay&&d<=item.endDay){
+                const ds=`${currentYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                dayMembers=dayMembers.concat(getShiftsForDate(item.event.id,ds));
+              }
+            }
+            const inRange=rowItems.some(item=>d>=item.startDay&&d<=item.endDay);
+            html+='<div class="shift-expand-cell"'+(inRange?'':' style="opacity:0.15"')+'>';
+            for(const nm of dayMembers) html+=`<span class="shift-name-tag">${esc(nm)}</span>`;
+            html+='</div>';
           }
           html+='</div></div>';
         }else{
-          html+=`<div style="padding:6px 10px;font-size:12px;color:var(--text-light);text-align:center;background:var(--surface-alt);border:1px solid var(--border-light);border-top:none;border-radius:0 0 6px 6px;margin:0 1px;">シフト未登録 - <a href="#" onclick="event.preventDefault();openShiftModal('${ev.id}')" style="color:var(--accent)">登録する</a></div>`;
+          html+=`<div class="shift-expand-inner shift-row-expand" style="padding:6px 10px;font-size:12px;color:var(--text-light);text-align:center;">シフト未登録</div>`;
         }
       }
     }
@@ -681,12 +695,10 @@ function getEventsForMonth(m){
 }
 function assignRows(me){const re=[];return me.map(item=>{let r=0;while(r<re.length&&re[r]>=item.startDay)r++;if(r>=re.length)re.push(0);re[r]=item.endDay;return{...item,row:r};});}
 
-// ===== Shift Expand Toggle =====
-function toggleShiftExpand(eventId,month,evt){
-  if(evt)evt.stopPropagation();
-  const key=eventId+'-'+month;
-  if(expandedEvents.has(key))expandedEvents.delete(key);
-  else expandedEvents.add(key);
+// ===== Shift Row Expand Toggle =====
+function toggleRowExpand(rowKey){
+  if(expandedRows.has(rowKey))expandedRows.delete(rowKey);
+  else expandedRows.add(rowKey);
   renderCalendar();
 }
 
@@ -710,17 +722,9 @@ document.addEventListener('touchend',e=>{
     longPressTimer=null;
     // 短いタップ: 展開トグル (touchMoveがなかった場合のみ)
     if(!touchMoved&&touchTarget){
-      const eid=touchTarget.dataset.eid;
-      if(eid){
-        // この催事が表示されている月を特定
-        const ev=events.find(x=>x.id===eid);
-        if(ev){
-          const monthBlock=touchTarget.closest('.month-block');
-          if(monthBlock){
-            const mid=monthBlock.id.replace('month-','');
-            toggleShiftExpand(eid,parseInt(mid));
-          }
-        }
+      const rowKey=touchTarget.dataset.rowkey;
+      if(rowKey){
+        toggleRowExpand(rowKey);
         e.preventDefault();
       }
     }
@@ -867,10 +871,30 @@ function showToast(m,isErr){const t=document.getElementById('toast');t.textConte
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closePicker();closeShiftModal();closeModal();closeSettings();closeInlinePopup();}if(e.key==='n'&&(e.ctrlKey||e.metaKey)){e.preventDefault();openAddModal();}});
 
 // ===== Print =====
-window.addEventListener('beforeprint',()=>{
-  // Collapse all shift expands for cleaner print
-  expandedEvents.clear();renderCalendar();
-});
+let printWithShifts=false;
+function printNoShift(){
+  printWithShifts=false;
+  expandedRows.clear();
+  renderCalendar();
+  document.body.classList.remove('print-with-shifts');
+  setTimeout(()=>window.print(),100);
+}
+function printWithShift(){
+  printWithShifts=true;
+  // 全行を展開
+  const area=document.getElementById('calendarArea');
+  for(let m=0;m<12;m++){
+    const me=getEventsForMonth(m);
+    const rows=assignRows(me);
+    const maxR=rows.length?Math.max(...rows.map(r=>r.row))+1:0;
+    for(let r=0;r<maxR;r++){
+      expandedRows.add('row-'+m+'-'+r);
+    }
+  }
+  renderCalendar();
+  document.body.classList.add('print-with-shifts');
+  setTimeout(()=>window.print(),100);
+}
 
 // ===== Start =====
 function startApp(){fetchEvents();if(syncInterval)clearInterval(syncInterval);syncInterval=setInterval(fetchEvents,30000);}
