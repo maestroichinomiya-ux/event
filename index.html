@@ -588,14 +588,14 @@ function initYearSelect(){const s=document.getElementById('yearSelect');for(let 
 // ===== Render =====
 function render(){renderEventList();renderCalendar();}
 function getFilteredEvents(){
-  let f=events.filter(e=>{const s=new Date(e.start),en=new Date(e.end);return s.getFullYear()===currentYear||en.getFullYear()===currentYear;});
+  let f=events.filter(e=>{const s=parseLocalDate(e.start),en=parseLocalDate(e.end);return s.getFullYear()===currentYear||en.getFullYear()===currentYear;});
   if(filterCategory!=='all')f=f.filter(e=>e.category===filterCategory);return f.sort((a,b)=>new Date(a.start)-new Date(b.start));
 }
 function renderEventList(){
   const list=document.getElementById('eventList'),filtered=getFilteredEvents();
   document.getElementById('eventCount').textContent=filtered.length+'件';
   if(!filtered.length){list.innerHTML='<div class="empty-state"><p>催事がありません</p></div>';return;}
-  list.innerHTML=filtered.map(ev=>{const c=CAT_COLORS[ev.category]||CAT_COLORS.other,s=new Date(ev.start),en=new Date(ev.end);
+  list.innerHTML=filtered.map(ev=>{const c=CAT_COLORS[ev.category]||CAT_COLORS.other,s=parseLocalDate(ev.start),en=parseLocalDate(ev.end);
     return `<div class="event-item" onclick="scrollToEvent('${ev.id}');closeSidebar();">
       <span class="event-color-dot" style="background:${c.bg}"></span>
       <div class="event-item-info"><div class="event-item-name">${esc(ev.name)}</div><div class="event-item-date">${s.getMonth()+1}/${s.getDate()} - ${en.getMonth()+1}/${en.getDate()}</div></div>
@@ -692,9 +692,15 @@ function renderCalendar(){
   }
   area.innerHTML=html;
 }
+// YYYY-MM-DD文字列からローカルDateを作成（タイムゾーンずれ防止）
+function parseLocalDate(s){
+  const nd=normDate(s);
+  const p=nd.split('-');
+  return new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));
+}
 function getEventsForMonth(m){
-  return events.filter(ev=>{const s=new Date(ev.start),e=new Date(ev.end);return s<=new Date(currentYear,m+1,0)&&e>=new Date(currentYear,m,1);})
-    .map(ev=>{const s=new Date(ev.start),e=new Date(ev.end),dim=new Date(currentYear,m+1,0).getDate();return{event:ev,startDay:Math.max(1,s.getFullYear()===currentYear&&s.getMonth()===m?s.getDate():1),endDay:Math.min(dim,e.getFullYear()===currentYear&&e.getMonth()===m?e.getDate():dim)};})
+  return events.filter(ev=>{const s=parseLocalDate(ev.start),e=parseLocalDate(ev.end);return s<=new Date(currentYear,m+1,0)&&e>=new Date(currentYear,m,1);})
+    .map(ev=>{const s=parseLocalDate(ev.start),e=parseLocalDate(ev.end),dim=new Date(currentYear,m+1,0).getDate();return{event:ev,startDay:Math.max(1,s.getFullYear()===currentYear&&s.getMonth()===m?s.getDate():1),endDay:Math.min(dim,e.getFullYear()===currentYear&&e.getMonth()===m?e.getDate():dim)};})
     .sort((a,b)=>a.startDay-b.startDay||(b.endDay-b.startDay)-(a.endDay-a.startDay));
 }
 function assignRows(me){const re=[];return me.map(item=>{let r=0;while(r<re.length&&re[r]>=item.startDay)r++;if(r>=re.length)re.push(0);re[r]=item.endDay;return{...item,row:r};});}
@@ -811,7 +817,7 @@ async function saveEvent(){
   closeModal();await apiPost({action:'add',event:{id:generateId(),name,start,end,category:selectedCategory,note}});showToast('追加しました');
 }
 async function deleteEvent(id){const ev=events.find(e=>e.id===id);if(!confirm(`「${ev?ev.name:''}」を削除しますか？`))return;await apiPost({action:'delete',id});showToast('削除しました');}
-function scrollToEvent(id){const ev=events.find(e=>e.id===id);if(!ev)return;const m=new Date(ev.start).getMonth(),bl=document.getElementById('month-'+m);if(bl)bl.scrollIntoView({behavior:'smooth',block:'start'});}
+function scrollToEvent(id){const ev=events.find(e=>e.id===id);if(!ev)return;const m=parseLocalDate(ev.start).getMonth(),bl=document.getElementById('month-'+m);if(bl)bl.scrollIntoView({behavior:'smooth',block:'start'});}
 
 // ===== Filters =====
 document.getElementById('filterArea').addEventListener('click',e=>{const c=e.target.closest('.filter-chip');if(!c)return;filterCategory=c.dataset.cat;document.querySelectorAll('.filter-chip').forEach(x=>x.classList.remove('active'));c.classList.add('active');render();});
@@ -859,9 +865,15 @@ function normDate(v){
   // 純粋なYYYY-MM-DD（Tなし）
   const pure=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   if(pure)return pure[1]+'-'+pure[2].padStart(2,'0')+'-'+pure[3].padStart(2,'0');
-  // ISO形式（Tあり）→ YYYY-MM-DD部分だけ取る（UTC変換しない）
-  const iso=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})T/);
-  if(iso)return iso[1]+'-'+iso[2].padStart(2,'0')+'-'+iso[3].padStart(2,'0');
+  // ISO形式（Tあり）→ JST（UTC+9）として解釈
+  if(s.includes('T')){
+    const d=new Date(s);
+    if(!isNaN(d.getTime())){
+      // JSTに変換
+      const jst=new Date(d.getTime()+9*60*60*1000);
+      return jst.getUTCFullYear()+'-'+String(jst.getUTCMonth()+1).padStart(2,'0')+'-'+String(jst.getUTCDate()).padStart(2,'0');
+    }
+  }
   // その他のYYYY-MM-DD含む文字列
   const any=s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
   if(any)return any[1]+'-'+any[2].padStart(2,'0')+'-'+any[3].padStart(2,'0');
@@ -950,7 +962,7 @@ function renderMemberManage(){
 function renderShiftBody(ev){
   if(!ev)return;
   const body=document.getElementById('shiftBody');
-  const s=new Date(ev.start),e=new Date(ev.end);
+  const s=parseLocalDate(ev.start),e=parseLocalDate(ev.end);
   const dn=['日','月','火','水','木','金','土'];
   let html='';
   const cur=new Date(s);
