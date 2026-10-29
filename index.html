@@ -548,8 +548,8 @@ function saveSettings(){const u=document.getElementById('settingsUrl').value.tri
 // ===== API =====
 function setSyncStatus(s,t){document.getElementById('syncDot').className='sync-dot'+(s==='loading'?' loading':s==='error'?' error':'');document.getElementById('syncText').textContent=t;}
 async function fetchEvents(){
-  // 保存中または保存直後10秒間は自動同期をスキップ
-  if(isSyncing||pendingSaves>0||(Date.now()-lastSaveTime<10000))return;
+  // 保存中・デバウンス待ち・保存直後10秒間は自動同期をスキップ
+  if(isSyncing||pendingSaves>0||saveTimers.size>0||(Date.now()-lastSaveTime<10000))return;
   isSyncing=true;setSyncStatus('loading','同期中...');
   try{const r=await fetch(GAS_URL);const d=await r.json();
     if(d.success){
@@ -1047,10 +1047,13 @@ function filterPicker(){
   if(!inp._keybound){
     inp._keybound=true;
     inp.addEventListener('keydown',e=>{
-      if(e.key==='Enter'&&q){
+      if(e.key==='Enter'){
+        const val=inp.value.trim();
+        if(!val||!pickerTarget)return;
         e.preventDefault();
-        if(!currentMembers.includes(q)){
-          pickMember(pickerTarget.eventId,pickerTarget.date,q);
+        const curMems=getShiftsForDate(pickerTarget.eventId,pickerTarget.date);
+        if(!curMems.includes(val)){
+          pickMember(pickerTarget.eventId,pickerTarget.date,val);
         }
       }
     });
@@ -1060,13 +1063,15 @@ function filterPicker(){
 
 function pickMember(eventId,date,name){
   closePicker();
-  if(getShiftsForDate(eventId,date).includes(name))return;
-  shifts.push({eventId,date,memberName:name});
+  const trimName=String(name).trim();
+  if(!trimName)return;
+  if(getShiftsForDate(eventId,date).includes(trimName))return;
+  shifts.push({eventId,date,memberName:trimName});
   // membersリストにまだない場合は追加（色の自動割当）
-  if(!members.find(m=>m.name===name)){
+  if(!members.find(m=>m.name===trimName)){
     const color=MEMBER_COLORS[members.length%MEMBER_COLORS.length];
-    members.push({name,color});
-    bgPost({action:'member_add',name,color});
+    members.push({name:trimName,color});
+    bgPost({action:'member_add',name:trimName,color});
   }
   renderMemberManage();
   updateShiftUI();
@@ -1074,7 +1079,8 @@ function pickMember(eventId,date,name){
 }
 
 function removeShiftMember(eventId,date,name){
-  shifts=shifts.filter(s=>!(s.eventId===eventId&&s.date===date&&s.memberName===name));
+  const trimName=String(name).trim();
+  shifts=shifts.filter(s=>!(s.eventId===eventId&&s.date===date&&s.memberName===trimName));
   renderMemberManage();
   updateShiftUI();
   bgSave(eventId,date);
@@ -1091,6 +1097,8 @@ let savePromises=new Map();
 
 function bgSave(eventId,date){
   const key=eventId+'|'+date;
+  // 即座に同期ブロック（デバウンス中にサーバー同期で上書きされるのを防止）
+  lastSaveTime=Date.now();
   // デバウンス500ms（連続操作をまとめる）
   if(saveTimers.has(key))clearTimeout(saveTimers.get(key));
   saveTimers.set(key,setTimeout(()=>{
